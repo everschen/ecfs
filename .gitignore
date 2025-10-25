@@ -1,0 +1,19 @@
+# Windows 批处理脚本
+*.cmd
+
+# Git 目录（绝对不要提交）
+.git/
+
+# C/C++ 编译生成的 object 文件
+*.o
+
+# Linux 内核模块
+*.ko
+
+# 可选：其他常见编译产物
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
