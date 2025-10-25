@@ -10,6 +10,11 @@
 # Linux 内核模块
 *.ko
 
+Module.symvers
+ecfs.mod
+ecfs.mod.c
+modules.order
+
 # 可选：其他常见编译产物
 *.obj
 *.exe
