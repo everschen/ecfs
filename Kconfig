@@ -1,0 +1,6 @@
+config ECFS_FS
+    tristate "ECFS: Evers Chen File System (kernel mode)"
+    depends on NET && INET
+    help
+      ECFS is a kernel-level distributed file system.
+      It manages metadata and data across networked nodes entirely in kernel space.

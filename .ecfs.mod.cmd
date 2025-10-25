@@ -1,0 +1,1 @@
+savedcmd_ecfs.mod := printf '%s\n'   ecfs_main.o super.o inode.o file.o dir.o net/net.o net/rdma.o meta/raft.o meta/meta.o ec/reed_solomon.o crypto/aes_gcm.o | awk '!x[$$0]++ { print("./"$$0) }' > ecfs.mod
