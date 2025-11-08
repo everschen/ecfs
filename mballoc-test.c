@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * KUnit test of ext4 multiblocks allocation.
+ * KUnit test of ecfs multiblocks allocation.
  */
 
 #include <kunit/test.h>
 #include <kunit/static_stub.h>
 #include <linux/random.h>
 
-#include "ext4.h"
+#include "ecfs.h"
 
 struct mbt_grp_ctx {
 	struct buffer_head bitmap_bh;
 	/* desc and gd_bh are just the place holders for now */
-	struct ext4_group_desc desc;
+	struct ecfs_group_desc desc;
 	struct buffer_head gd_bh;
 };
 
@@ -20,21 +20,21 @@ struct mbt_ctx {
 	struct mbt_grp_ctx *grp_ctx;
 };
 
-struct mbt_ext4_super_block {
-	struct ext4_super_block es;
-	struct ext4_sb_info sbi;
+struct mbt_ecfs_super_block {
+	struct ecfs_super_block es;
+	struct ecfs_sb_info sbi;
 	struct mbt_ctx mbt_ctx;
 };
 
-#define MBT_SB(_sb) (container_of((_sb)->s_fs_info, struct mbt_ext4_super_block, sbi))
+#define MBT_SB(_sb) (container_of((_sb)->s_fs_info, struct mbt_ecfs_super_block, sbi))
 #define MBT_CTX(_sb) (&MBT_SB(_sb)->mbt_ctx)
 #define MBT_GRP_CTX(_sb, _group) (&MBT_CTX(_sb)->grp_ctx[_group])
 
 static struct inode *mbt_alloc_inode(struct super_block *sb)
 {
-	struct ext4_inode_info *ei;
+	struct ecfs_inode_info *ei;
 
-	ei = kmalloc(sizeof(struct ext4_inode_info), GFP_KERNEL);
+	ei = kmalloc(sizeof(struct ecfs_inode_info), GFP_KERNEL);
 	if (!ei)
 		return NULL;
 
@@ -42,14 +42,14 @@ static struct inode *mbt_alloc_inode(struct super_block *sb)
 	init_rwsem(&ei->xattr_sem);
 	init_rwsem(&ei->i_data_sem);
 	inode_init_once(&ei->vfs_inode);
-	ext4_fc_init_inode(&ei->vfs_inode);
+	ecfs_fc_init_inode(&ei->vfs_inode);
 
 	return &ei->vfs_inode;
 }
 
 static void mbt_free_inode(struct inode *inode)
 {
-	kfree(EXT4_I(inode));
+	kfree(ECFS_I(inode));
 }
 
 static const struct super_operations mbt_sops = {
@@ -69,10 +69,10 @@ static struct file_system_type mbt_fs_type = {
 
 static int mbt_mb_init(struct super_block *sb)
 {
-	ext4_fsblk_t block;
+	ecfs_fsblk_t block;
 	int ret;
 
-	/* needed by ext4_mb_init->bdev_nonrot(sb->s_bdev) */
+	/* needed by ecfs_mb_init->bdev_nonrot(sb->s_bdev) */
 	sb->s_bdev = kzalloc(sizeof(*sb->s_bdev), GFP_KERNEL);
 	if (sb->s_bdev == NULL)
 		return -ENOMEM;
@@ -84,23 +84,23 @@ static int mbt_mb_init(struct super_block *sb)
 	}
 
 	/*
-	 * needed by ext4_mb_init->ext4_mb_init_backend-> sbi->s_buddy_cache =
+	 * needed by ecfs_mb_init->ecfs_mb_init_backend-> sbi->s_buddy_cache =
 	 * new_inode(sb);
 	 */
 	INIT_LIST_HEAD(&sb->s_inodes);
 	sb->s_op = &mbt_sops;
 
-	ret = ext4_mb_init(sb);
+	ret = ecfs_mb_init(sb);
 	if (ret != 0)
 		goto err_out;
 
-	block = ext4_count_free_clusters(sb);
-	ret = percpu_counter_init(&EXT4_SB(sb)->s_freeclusters_counter, block,
+	block = ecfs_count_free_clusters(sb);
+	ret = percpu_counter_init(&ECFS_SB(sb)->s_freeclusters_counter, block,
 				  GFP_KERNEL);
 	if (ret != 0)
 		goto err_mb_release;
 
-	ret = percpu_counter_init(&EXT4_SB(sb)->s_dirtyclusters_counter, 0,
+	ret = percpu_counter_init(&ECFS_SB(sb)->s_dirtyclusters_counter, 0,
 				  GFP_KERNEL);
 	if (ret != 0)
 		goto err_freeclusters;
@@ -108,9 +108,9 @@ static int mbt_mb_init(struct super_block *sb)
 	return 0;
 
 err_freeclusters:
-	percpu_counter_destroy(&EXT4_SB(sb)->s_freeclusters_counter);
+	percpu_counter_destroy(&ECFS_SB(sb)->s_freeclusters_counter);
 err_mb_release:
-	ext4_mb_release(sb);
+	ecfs_mb_release(sb);
 err_out:
 	kfree(sb->s_bdev->bd_queue);
 	kfree(sb->s_bdev);
@@ -119,9 +119,9 @@ err_out:
 
 static void mbt_mb_release(struct super_block *sb)
 {
-	percpu_counter_destroy(&EXT4_SB(sb)->s_dirtyclusters_counter);
-	percpu_counter_destroy(&EXT4_SB(sb)->s_freeclusters_counter);
-	ext4_mb_release(sb);
+	percpu_counter_destroy(&ECFS_SB(sb)->s_dirtyclusters_counter);
+	percpu_counter_destroy(&ECFS_SB(sb)->s_freeclusters_counter);
+	ecfs_mb_release(sb);
 	kfree(sb->s_bdev->bd_queue);
 	kfree(sb->s_bdev);
 }
@@ -131,11 +131,11 @@ static int mbt_set(struct super_block *sb, void *data)
 	return 0;
 }
 
-static struct super_block *mbt_ext4_alloc_super_block(void)
+static struct super_block *mbt_ecfs_alloc_super_block(void)
 {
-	struct mbt_ext4_super_block *fsb;
+	struct mbt_ecfs_super_block *fsb;
 	struct super_block *sb;
-	struct ext4_sb_info *sbi;
+	struct ecfs_sb_info *sbi;
 
 	fsb = kzalloc(sizeof(*fsb), GFP_KERNEL);
 	if (fsb == NULL)
@@ -168,29 +168,29 @@ out:
 	return NULL;
 }
 
-static void mbt_ext4_free_super_block(struct super_block *sb)
+static void mbt_ecfs_free_super_block(struct super_block *sb)
 {
-	struct mbt_ext4_super_block *fsb = MBT_SB(sb);
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	struct mbt_ecfs_super_block *fsb = MBT_SB(sb);
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	kfree(sbi->s_blockgroup_lock);
 	deactivate_super(sb);
 	kfree(fsb);
 }
 
-struct mbt_ext4_block_layout {
+struct mbt_ecfs_block_layout {
 	unsigned char blocksize_bits;
 	unsigned int cluster_bits;
 	uint32_t blocks_per_group;
-	ext4_group_t group_count;
+	ecfs_group_t group_count;
 	uint16_t desc_size;
 };
 
 static void mbt_init_sb_layout(struct super_block *sb,
-			       struct mbt_ext4_block_layout *layout)
+			       struct mbt_ecfs_block_layout *layout)
 {
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
-	struct ext4_super_block *es = sbi->s_es;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+	struct ecfs_super_block *es = sbi->s_es;
 
 	sb->s_blocksize = 1UL << layout->blocksize_bits;
 	sb->s_blocksize_bits = layout->blocksize_bits;
@@ -214,13 +214,13 @@ static void mbt_init_sb_layout(struct super_block *sb,
 static int mbt_grp_ctx_init(struct super_block *sb,
 			    struct mbt_grp_ctx *grp_ctx)
 {
-	ext4_grpblk_t max = EXT4_CLUSTERS_PER_GROUP(sb);
+	ecfs_grpblk_t max = ECFS_CLUSTERS_PER_GROUP(sb);
 
-	grp_ctx->bitmap_bh.b_data = kzalloc(EXT4_BLOCK_SIZE(sb), GFP_KERNEL);
+	grp_ctx->bitmap_bh.b_data = kzalloc(ECFS_BLOCK_SIZE(sb), GFP_KERNEL);
 	if (grp_ctx->bitmap_bh.b_data == NULL)
 		return -ENOMEM;
-	mb_set_bits(grp_ctx->bitmap_bh.b_data, max, sb->s_blocksize * 8 - max);
-	ext4_free_group_clusters_set(sb, &grp_ctx->desc, max);
+	ecfs_mb_set_bits(grp_ctx->bitmap_bh.b_data, max, sb->s_blocksize * 8 - max);
+	ecfs_free_group_clusters_set(sb, &grp_ctx->desc, max);
 
 	return 0;
 }
@@ -231,15 +231,15 @@ static void mbt_grp_ctx_release(struct mbt_grp_ctx *grp_ctx)
 	grp_ctx->bitmap_bh.b_data = NULL;
 }
 
-static void mbt_ctx_mark_used(struct super_block *sb, ext4_group_t group,
+static void mbt_ctx_mark_used(struct super_block *sb, ecfs_group_t group,
 			      unsigned int start, unsigned int len)
 {
 	struct mbt_grp_ctx *grp_ctx = MBT_GRP_CTX(sb, group);
 
-	mb_set_bits(grp_ctx->bitmap_bh.b_data, start, len);
+	ecfs_mb_set_bits(grp_ctx->bitmap_bh.b_data, start, len);
 }
 
-static void *mbt_ctx_bitmap(struct super_block *sb, ext4_group_t group)
+static void *mbt_ctx_bitmap(struct super_block *sb, ecfs_group_t group)
 {
 	struct mbt_grp_ctx *grp_ctx = MBT_GRP_CTX(sb, group);
 
@@ -250,7 +250,7 @@ static void *mbt_ctx_bitmap(struct super_block *sb, ext4_group_t group)
 static int mbt_ctx_init(struct super_block *sb)
 {
 	struct mbt_ctx *ctx = MBT_CTX(sb);
-	ext4_group_t i, ngroups = ext4_get_groups_count(sb);
+	ecfs_group_t i, ngroups = ecfs_get_groups_count(sb);
 
 	ctx->grp_ctx = kcalloc(ngroups, sizeof(struct mbt_grp_ctx),
 			       GFP_KERNEL);
@@ -264,11 +264,11 @@ static int mbt_ctx_init(struct super_block *sb)
 	/*
 	 * first data block(first cluster in first group) is used by
 	 * metadata, mark it used to avoid to alloc data block at first
-	 * block which will fail ext4_sb_block_valid check.
+	 * block which will fail ecfs_sb_block_valid check.
 	 */
-	mb_set_bits(ctx->grp_ctx[0].bitmap_bh.b_data, 0, 1);
-	ext4_free_group_clusters_set(sb, &ctx->grp_ctx[0].desc,
-				     EXT4_CLUSTERS_PER_GROUP(sb) - 1);
+	ecfs_mb_set_bits(ctx->grp_ctx[0].bitmap_bh.b_data, 0, 1);
+	ecfs_free_group_clusters_set(sb, &ctx->grp_ctx[0].desc,
+				     ECFS_CLUSTERS_PER_GROUP(sb) - 1);
 
 	return 0;
 out:
@@ -281,7 +281,7 @@ out:
 static void mbt_ctx_release(struct super_block *sb)
 {
 	struct mbt_ctx *ctx = MBT_CTX(sb);
-	ext4_group_t i, ngroups = ext4_get_groups_count(sb);
+	ecfs_group_t i, ngroups = ecfs_get_groups_count(sb);
 
 	for (i = 0; i < ngroups; i++)
 		mbt_grp_ctx_release(&ctx->grp_ctx[i]);
@@ -289,23 +289,23 @@ static void mbt_ctx_release(struct super_block *sb)
 }
 
 static struct buffer_head *
-ext4_read_block_bitmap_nowait_stub(struct super_block *sb, ext4_group_t block_group,
+ecfs_read_block_bitmap_nowait_stub(struct super_block *sb, ecfs_group_t block_group,
 				   bool ignore_locked)
 {
 	struct mbt_grp_ctx *grp_ctx = MBT_GRP_CTX(sb, block_group);
 
-	/* paired with brelse from caller of ext4_read_block_bitmap_nowait */
+	/* paired with brelse from caller of ecfs_read_block_bitmap_nowait */
 	get_bh(&grp_ctx->bitmap_bh);
 	return &grp_ctx->bitmap_bh;
 }
 
-static int ext4_wait_block_bitmap_stub(struct super_block *sb,
-				       ext4_group_t block_group,
+static int ecfs_wait_block_bitmap_stub(struct super_block *sb,
+				       ecfs_group_t block_group,
 				       struct buffer_head *bh)
 {
 	/*
-	 * real ext4_wait_block_bitmap will set these flags and
-	 * functions like ext4_mb_init_cache will verify the flags.
+	 * real ecfs_wait_block_bitmap will set these flags and
+	 * functions like ecfs_mb_init_cache will verify the flags.
 	 */
 	set_buffer_uptodate(bh);
 	set_bitmap_uptodate(bh);
@@ -313,8 +313,8 @@ static int ext4_wait_block_bitmap_stub(struct super_block *sb,
 	return 0;
 }
 
-static struct ext4_group_desc *
-ext4_get_group_desc_stub(struct super_block *sb, ext4_group_t block_group,
+static struct ecfs_group_desc *
+ecfs_get_group_desc_stub(struct super_block *sb, ecfs_group_t block_group,
 			 struct buffer_head **bh)
 {
 	struct mbt_grp_ctx *grp_ctx = MBT_GRP_CTX(sb, block_group);
@@ -326,16 +326,16 @@ ext4_get_group_desc_stub(struct super_block *sb, ext4_group_t block_group,
 }
 
 static int
-ext4_mb_mark_context_stub(handle_t *handle, struct super_block *sb, bool state,
-			  ext4_group_t group, ext4_grpblk_t blkoff,
-			  ext4_grpblk_t len, int flags,
-			  ext4_grpblk_t *ret_changed)
+ecfs_mb_mark_context_stub(handle_t *handle, struct super_block *sb, bool state,
+			  ecfs_group_t group, ecfs_grpblk_t blkoff,
+			  ecfs_grpblk_t len, int flags,
+			  ecfs_grpblk_t *ret_changed)
 {
 	struct mbt_grp_ctx *grp_ctx = MBT_GRP_CTX(sb, group);
 	struct buffer_head *bitmap_bh = &grp_ctx->bitmap_bh;
 
 	if (state)
-		mb_set_bits(bitmap_bh->b_data, blkoff, len);
+		ecfs_mb_set_bits(bitmap_bh->b_data, blkoff, len);
 	else
 		mb_clear_bits(bitmap_bh->b_data, blkoff, len);
 
@@ -345,12 +345,12 @@ ext4_mb_mark_context_stub(handle_t *handle, struct super_block *sb, bool state,
 #define TEST_GOAL_GROUP 1
 static int mbt_kunit_init(struct kunit *test)
 {
-	struct mbt_ext4_block_layout *layout =
-		(struct mbt_ext4_block_layout *)(test->param_value);
+	struct mbt_ecfs_block_layout *layout =
+		(struct mbt_ecfs_block_layout *)(test->param_value);
 	struct super_block *sb;
 	int ret;
 
-	sb = mbt_ext4_alloc_super_block();
+	sb = mbt_ecfs_alloc_super_block();
 	if (sb == NULL)
 		return -ENOMEM;
 
@@ -358,28 +358,28 @@ static int mbt_kunit_init(struct kunit *test)
 
 	ret = mbt_ctx_init(sb);
 	if (ret != 0) {
-		mbt_ext4_free_super_block(sb);
+		mbt_ecfs_free_super_block(sb);
 		return ret;
 	}
 
 	test->priv = sb;
 	kunit_activate_static_stub(test,
-				   ext4_read_block_bitmap_nowait,
-				   ext4_read_block_bitmap_nowait_stub);
+				   ecfs_read_block_bitmap_nowait,
+				   ecfs_read_block_bitmap_nowait_stub);
 	kunit_activate_static_stub(test,
-				   ext4_wait_block_bitmap,
-				   ext4_wait_block_bitmap_stub);
+				   ecfs_wait_block_bitmap,
+				   ecfs_wait_block_bitmap_stub);
 	kunit_activate_static_stub(test,
-				   ext4_get_group_desc,
-				   ext4_get_group_desc_stub);
+				   ecfs_get_group_desc,
+				   ecfs_get_group_desc_stub);
 	kunit_activate_static_stub(test,
-				   ext4_mb_mark_context,
-				   ext4_mb_mark_context_stub);
+				   ecfs_mb_mark_context,
+				   ecfs_mb_mark_context_stub);
 
-	/* stub function will be called in mbt_mb_init->ext4_mb_init */
+	/* stub function will be called in mbt_mb_init->ecfs_mb_init */
 	if (mbt_mb_init(sb) != 0) {
 		mbt_ctx_release(sb);
-		mbt_ext4_free_super_block(sb);
+		mbt_ecfs_free_super_block(sb);
 		return -ENOMEM;
 	}
 
@@ -392,18 +392,18 @@ static void mbt_kunit_exit(struct kunit *test)
 
 	mbt_mb_release(sb);
 	mbt_ctx_release(sb);
-	mbt_ext4_free_super_block(sb);
+	mbt_ecfs_free_super_block(sb);
 }
 
 static void test_new_blocks_simple(struct kunit *test)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	struct inode *inode;
-	struct ext4_allocation_request ar;
-	ext4_group_t i, goal_group = TEST_GOAL_GROUP;
+	struct ecfs_allocation_request ar;
+	ecfs_group_t i, goal_group = TEST_GOAL_GROUP;
 	int err = 0;
-	ext4_fsblk_t found;
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	ecfs_fsblk_t found;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	inode = kunit_kzalloc(test, sizeof(*inode), GFP_KERNEL);
 	if (!inode)
@@ -413,43 +413,43 @@ static void test_new_blocks_simple(struct kunit *test)
 	ar.inode = inode;
 
 	/* get block at goal */
-	ar.goal = ext4_group_first_block_no(sb, goal_group);
-	found = ext4_mb_new_blocks_simple(&ar, &err);
+	ar.goal = ecfs_group_first_block_no(sb, goal_group);
+	found = ecfs_mb_new_blocks_simple(&ar, &err);
 	KUNIT_ASSERT_EQ_MSG(test, ar.goal, found,
 		"failed to alloc block at goal, expected %llu found %llu",
 		ar.goal, found);
 
 	/* get block after goal in goal group */
-	ar.goal = ext4_group_first_block_no(sb, goal_group);
-	found = ext4_mb_new_blocks_simple(&ar, &err);
-	KUNIT_ASSERT_EQ_MSG(test, ar.goal + EXT4_C2B(sbi, 1), found,
+	ar.goal = ecfs_group_first_block_no(sb, goal_group);
+	found = ecfs_mb_new_blocks_simple(&ar, &err);
+	KUNIT_ASSERT_EQ_MSG(test, ar.goal + ECFS_C2B(sbi, 1), found,
 		"failed to alloc block after goal in goal group, expected %llu found %llu",
 		ar.goal + 1, found);
 
 	/* get block after goal group */
-	mbt_ctx_mark_used(sb, goal_group, 0, EXT4_CLUSTERS_PER_GROUP(sb));
-	ar.goal = ext4_group_first_block_no(sb, goal_group);
-	found = ext4_mb_new_blocks_simple(&ar, &err);
+	mbt_ctx_mark_used(sb, goal_group, 0, ECFS_CLUSTERS_PER_GROUP(sb));
+	ar.goal = ecfs_group_first_block_no(sb, goal_group);
+	found = ecfs_mb_new_blocks_simple(&ar, &err);
 	KUNIT_ASSERT_EQ_MSG(test,
-		ext4_group_first_block_no(sb, goal_group + 1), found,
+		ecfs_group_first_block_no(sb, goal_group + 1), found,
 		"failed to alloc block after goal group, expected %llu found %llu",
-		ext4_group_first_block_no(sb, goal_group + 1), found);
+		ecfs_group_first_block_no(sb, goal_group + 1), found);
 
 	/* get block before goal group */
-	for (i = goal_group; i < ext4_get_groups_count(sb); i++)
-		mbt_ctx_mark_used(sb, i, 0, EXT4_CLUSTERS_PER_GROUP(sb));
-	ar.goal = ext4_group_first_block_no(sb, goal_group);
-	found = ext4_mb_new_blocks_simple(&ar, &err);
+	for (i = goal_group; i < ecfs_get_groups_count(sb); i++)
+		mbt_ctx_mark_used(sb, i, 0, ECFS_CLUSTERS_PER_GROUP(sb));
+	ar.goal = ecfs_group_first_block_no(sb, goal_group);
+	found = ecfs_mb_new_blocks_simple(&ar, &err);
 	KUNIT_ASSERT_EQ_MSG(test,
-		ext4_group_first_block_no(sb, 0) + EXT4_C2B(sbi, 1), found,
+		ecfs_group_first_block_no(sb, 0) + ECFS_C2B(sbi, 1), found,
 		"failed to alloc block before goal group, expected %llu found %llu",
-		ext4_group_first_block_no(sb, 0 + EXT4_C2B(sbi, 1)), found);
+		ecfs_group_first_block_no(sb, 0 + ECFS_C2B(sbi, 1)), found);
 
 	/* no block available, fail to allocate block */
-	for (i = 0; i < ext4_get_groups_count(sb); i++)
-		mbt_ctx_mark_used(sb, i, 0, EXT4_CLUSTERS_PER_GROUP(sb));
-	ar.goal = ext4_group_first_block_no(sb, goal_group);
-	found = ext4_mb_new_blocks_simple(&ar, &err);
+	for (i = 0; i < ecfs_get_groups_count(sb); i++)
+		mbt_ctx_mark_used(sb, i, 0, ECFS_CLUSTERS_PER_GROUP(sb));
+	ar.goal = ecfs_group_first_block_no(sb, goal_group);
+	found = ecfs_mb_new_blocks_simple(&ar, &err);
 	KUNIT_ASSERT_NE_MSG(test, err, 0,
 		"unexpectedly get block when no block is available");
 }
@@ -457,18 +457,18 @@ static void test_new_blocks_simple(struct kunit *test)
 #define TEST_RANGE_COUNT 8
 
 struct test_range {
-	ext4_grpblk_t start;
-	ext4_grpblk_t len;
+	ecfs_grpblk_t start;
+	ecfs_grpblk_t len;
 };
 
 static void
 mbt_generate_test_ranges(struct super_block *sb, struct test_range *ranges,
 			 int count)
 {
-	ext4_grpblk_t start, len, max;
+	ecfs_grpblk_t start, len, max;
 	int i;
 
-	max = EXT4_CLUSTERS_PER_GROUP(sb) / count;
+	max = ECFS_CLUSTERS_PER_GROUP(sb) / count;
 	for (i = 0; i < count; i++) {
 		start = get_random_u32() % max;
 		len = get_random_u32() % max;
@@ -481,14 +481,14 @@ mbt_generate_test_ranges(struct super_block *sb, struct test_range *ranges,
 
 static void
 validate_free_blocks_simple(struct kunit *test, struct super_block *sb,
-			    ext4_group_t goal_group, ext4_grpblk_t start,
-			    ext4_grpblk_t len)
+			    ecfs_group_t goal_group, ecfs_grpblk_t start,
+			    ecfs_grpblk_t len)
 {
 	void *bitmap;
-	ext4_grpblk_t bit, max = EXT4_CLUSTERS_PER_GROUP(sb);
-	ext4_group_t i;
+	ecfs_grpblk_t bit, max = ECFS_CLUSTERS_PER_GROUP(sb);
+	ecfs_group_t i;
 
-	for (i = 0; i < ext4_get_groups_count(sb); i++) {
+	for (i = 0; i < ecfs_get_groups_count(sb); i++) {
 		if (i == goal_group)
 			continue;
 
@@ -507,13 +507,13 @@ validate_free_blocks_simple(struct kunit *test, struct super_block *sb,
 }
 
 static void
-test_free_blocks_simple_range(struct kunit *test, ext4_group_t goal_group,
-			      ext4_grpblk_t start, ext4_grpblk_t len)
+test_free_blocks_simple_range(struct kunit *test, ecfs_group_t goal_group,
+			      ecfs_grpblk_t start, ecfs_grpblk_t len)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 	struct inode *inode;
-	ext4_fsblk_t block;
+	ecfs_fsblk_t block;
 
 	inode = kunit_kzalloc(test, sizeof(*inode), GFP_KERNEL);
 	if (!inode)
@@ -523,21 +523,21 @@ test_free_blocks_simple_range(struct kunit *test, ext4_group_t goal_group,
 	if (len == 0)
 		return;
 
-	block = ext4_group_first_block_no(sb, goal_group) +
-		EXT4_C2B(sbi, start);
-	ext4_free_blocks_simple(inode, block, len);
+	block = ecfs_group_first_block_no(sb, goal_group) +
+		ECFS_C2B(sbi, start);
+	ecfs_free_blocks_simple(inode, block, len);
 	validate_free_blocks_simple(test, sb, goal_group, start, len);
-	mbt_ctx_mark_used(sb, goal_group, 0, EXT4_CLUSTERS_PER_GROUP(sb));
+	mbt_ctx_mark_used(sb, goal_group, 0, ECFS_CLUSTERS_PER_GROUP(sb));
 }
 
 static void test_free_blocks_simple(struct kunit *test)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
-	ext4_grpblk_t max = EXT4_CLUSTERS_PER_GROUP(sb);
-	ext4_group_t i;
+	ecfs_grpblk_t max = ECFS_CLUSTERS_PER_GROUP(sb);
+	ecfs_group_t i;
 	struct test_range ranges[TEST_RANGE_COUNT];
 
-	for (i = 0; i < ext4_get_groups_count(sb); i++)
+	for (i = 0; i < ecfs_get_groups_count(sb); i++)
 		mbt_ctx_mark_used(sb, i, 0, max);
 
 	mbt_generate_test_ranges(sb, ranges, TEST_RANGE_COUNT);
@@ -548,16 +548,16 @@ static void test_free_blocks_simple(struct kunit *test)
 
 static void
 test_mark_diskspace_used_range(struct kunit *test,
-			       struct ext4_allocation_context *ac,
-			       ext4_grpblk_t start,
-			       ext4_grpblk_t len)
+			       struct ecfs_allocation_context *ac,
+			       ecfs_grpblk_t start,
+			       ecfs_grpblk_t len)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	int ret;
 	void *bitmap;
-	ext4_grpblk_t i, max;
+	ecfs_grpblk_t i, max;
 
-	/* ext4_mb_mark_diskspace_used will BUG if len is 0 */
+	/* ecfs_mb_mark_diskspace_used will BUG if len is 0 */
 	if (len == 0)
 		return;
 
@@ -567,10 +567,10 @@ test_mark_diskspace_used_range(struct kunit *test,
 
 	bitmap = mbt_ctx_bitmap(sb, TEST_GOAL_GROUP);
 	memset(bitmap, 0, sb->s_blocksize);
-	ret = ext4_mb_mark_diskspace_used(ac, NULL, 0);
+	ret = ecfs_mb_mark_diskspace_used(ac, NULL, 0);
 	KUNIT_ASSERT_EQ(test, ret, 0);
 
-	max = EXT4_CLUSTERS_PER_GROUP(sb);
+	max = ECFS_CLUSTERS_PER_GROUP(sb);
 	i = mb_find_next_bit(bitmap, max, 0);
 	KUNIT_ASSERT_EQ(test, i, start);
 	i = mb_find_next_zero_bit(bitmap, max, i + 1);
@@ -583,7 +583,7 @@ static void test_mark_diskspace_used(struct kunit *test)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	struct inode *inode;
-	struct ext4_allocation_context ac;
+	struct ecfs_allocation_context ac;
 	struct test_range ranges[TEST_RANGE_COUNT];
 	int i;
 
@@ -603,19 +603,19 @@ static void test_mark_diskspace_used(struct kunit *test)
 }
 
 static void mbt_generate_buddy(struct super_block *sb, void *buddy,
-			       void *bitmap, struct ext4_group_info *grp)
+			       void *bitmap, struct ecfs_group_info *grp)
 {
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 	uint32_t order, off;
 	void *bb, *bb_h;
 	int max;
 
 	memset(buddy, 0xff, sb->s_blocksize);
-	memset(grp, 0, offsetof(struct ext4_group_info,
+	memset(grp, 0, offsetof(struct ecfs_group_info,
 				 bb_counters[MB_NUM_ORDERS(sb)]));
 
 	bb = bitmap;
-	max = EXT4_CLUSTERS_PER_GROUP(sb);
+	max = ECFS_CLUSTERS_PER_GROUP(sb);
 	bb_h = buddy + sbi->s_mb_offsets[1];
 
 	off = mb_find_next_zero_bit(bb, max, 0);
@@ -644,7 +644,7 @@ static void mbt_generate_buddy(struct super_block *sb, void *buddy,
 
 		while (off < max) {
 			if (!(off & 1) && !mb_test_bit(off + 1, bb)) {
-				mb_set_bits(bb, off, 2);
+				ecfs_mb_set_bits(bb, off, 2);
 				grp->bb_counters[order] -= 2;
 				mb_clear_bit(off >> 1, bb_h);
 				grp->bb_counters[order + 1]++;
@@ -656,7 +656,7 @@ static void mbt_generate_buddy(struct super_block *sb, void *buddy,
 		}
 	}
 
-	max = EXT4_CLUSTERS_PER_GROUP(sb);
+	max = ECFS_CLUSTERS_PER_GROUP(sb);
 	off = mb_find_next_zero_bit(bitmap, max, 0);
 	while (off < max) {
 		grp->bb_fragments++;
@@ -670,8 +670,8 @@ static void mbt_generate_buddy(struct super_block *sb, void *buddy,
 }
 
 static void
-mbt_validate_group_info(struct kunit *test, struct ext4_group_info *grp1,
-			struct ext4_group_info *grp2)
+mbt_validate_group_info(struct kunit *test, struct ecfs_group_info *grp1,
+			struct ecfs_group_info *grp2)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	int i;
@@ -695,31 +695,31 @@ mbt_validate_group_info(struct kunit *test, struct ext4_group_info *grp1,
 
 static void
 do_test_generate_buddy(struct kunit *test, struct super_block *sb, void *bitmap,
-			   void *mbt_buddy, struct ext4_group_info *mbt_grp,
-			   void *ext4_buddy, struct ext4_group_info *ext4_grp)
+			   void *mbt_buddy, struct ecfs_group_info *mbt_grp,
+			   void *ecfs_buddy, struct ecfs_group_info *ecfs_grp)
 {
 	int i;
 
 	mbt_generate_buddy(sb, mbt_buddy, bitmap, mbt_grp);
 
 	for (i = 0; i < MB_NUM_ORDERS(sb); i++)
-		ext4_grp->bb_counters[i] = 0;
-	/* needed by validation in ext4_mb_generate_buddy */
-	ext4_grp->bb_free = mbt_grp->bb_free;
-	memset(ext4_buddy, 0xff, sb->s_blocksize);
-	ext4_mb_generate_buddy(sb, ext4_buddy, bitmap, TEST_GOAL_GROUP,
-			       ext4_grp);
+		ecfs_grp->bb_counters[i] = 0;
+	/* needed by validation in ecfs_mb_generate_buddy */
+	ecfs_grp->bb_free = mbt_grp->bb_free;
+	memset(ecfs_buddy, 0xff, sb->s_blocksize);
+	ecfs_mb_generate_buddy(sb, ecfs_buddy, bitmap, TEST_GOAL_GROUP,
+			       ecfs_grp);
 
-	KUNIT_ASSERT_EQ(test, memcmp(mbt_buddy, ext4_buddy, sb->s_blocksize),
+	KUNIT_ASSERT_EQ(test, memcmp(mbt_buddy, ecfs_buddy, sb->s_blocksize),
 			0);
-	mbt_validate_group_info(test, mbt_grp, ext4_grp);
+	mbt_validate_group_info(test, mbt_grp, ecfs_grp);
 }
 
 static void test_mb_generate_buddy(struct kunit *test)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	void *bitmap, *expected_bb, *generate_bb;
-	struct ext4_group_info *expected_grp, *generate_grp;
+	struct ecfs_group_info *expected_grp, *generate_grp;
 	struct test_range ranges[TEST_RANGE_COUNT];
 	int i;
 
@@ -729,27 +729,27 @@ static void test_mb_generate_buddy(struct kunit *test)
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, expected_bb);
 	generate_bb = kunit_kzalloc(test, sb->s_blocksize, GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, generate_bb);
-	expected_grp = kunit_kzalloc(test, offsetof(struct ext4_group_info,
+	expected_grp = kunit_kzalloc(test, offsetof(struct ecfs_group_info,
 				bb_counters[MB_NUM_ORDERS(sb)]), GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, expected_grp);
-	generate_grp = ext4_get_group_info(sb, TEST_GOAL_GROUP);
+	generate_grp = ecfs_get_group_info(sb, TEST_GOAL_GROUP);
 	KUNIT_ASSERT_NOT_NULL(test, generate_grp);
 
 	mbt_generate_test_ranges(sb, ranges, TEST_RANGE_COUNT);
 	for (i = 0; i < TEST_RANGE_COUNT; i++) {
-		mb_set_bits(bitmap, ranges[i].start, ranges[i].len);
+		ecfs_mb_set_bits(bitmap, ranges[i].start, ranges[i].len);
 		do_test_generate_buddy(test, sb, bitmap, expected_bb,
 				       expected_grp, generate_bb, generate_grp);
 	}
 }
 
 static void
-test_mb_mark_used_range(struct kunit *test, struct ext4_buddy *e4b,
-			ext4_grpblk_t start, ext4_grpblk_t len, void *bitmap,
-			void *buddy, struct ext4_group_info *grp)
+test_mb_mark_used_range(struct kunit *test, struct ecfs_buddy *e4b,
+			ecfs_grpblk_t start, ecfs_grpblk_t len, void *bitmap,
+			void *buddy, struct ecfs_group_info *grp)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
-	struct ext4_free_extent ex;
+	struct ecfs_free_extent ex;
 	int i;
 
 	/* mb_mark_used only accepts non-zero len */
@@ -760,17 +760,17 @@ test_mb_mark_used_range(struct kunit *test, struct ext4_buddy *e4b,
 	ex.fe_len = len;
 	ex.fe_group = TEST_GOAL_GROUP;
 
-	ext4_lock_group(sb, TEST_GOAL_GROUP);
+	ecfs_lock_group(sb, TEST_GOAL_GROUP);
 	mb_mark_used(e4b, &ex);
-	ext4_unlock_group(sb, TEST_GOAL_GROUP);
+	ecfs_unlock_group(sb, TEST_GOAL_GROUP);
 
-	mb_set_bits(bitmap, start, len);
-	/* bypass bb_free validatoin in ext4_mb_generate_buddy */
+	ecfs_mb_set_bits(bitmap, start, len);
+	/* bypass bb_free validatoin in ecfs_mb_generate_buddy */
 	grp->bb_free -= len;
 	memset(buddy, 0xff, sb->s_blocksize);
 	for (i = 0; i < MB_NUM_ORDERS(sb); i++)
 		grp->bb_counters[i] = 0;
-	ext4_mb_generate_buddy(sb, buddy, bitmap, 0, grp);
+	ecfs_mb_generate_buddy(sb, buddy, bitmap, 0, grp);
 
 	KUNIT_ASSERT_EQ(test, memcmp(buddy, e4b->bd_buddy, sb->s_blocksize),
 			0);
@@ -779,10 +779,10 @@ test_mb_mark_used_range(struct kunit *test, struct ext4_buddy *e4b,
 
 static void test_mb_mark_used(struct kunit *test)
 {
-	struct ext4_buddy e4b;
+	struct ecfs_buddy e4b;
 	struct super_block *sb = (struct super_block *)test->priv;
 	void *bitmap, *buddy;
-	struct ext4_group_info *grp;
+	struct ecfs_group_info *grp;
 	int ret;
 	struct test_range ranges[TEST_RANGE_COUNT];
 	int i;
@@ -795,14 +795,14 @@ static void test_mb_mark_used(struct kunit *test)
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, bitmap);
 	buddy = kunit_kzalloc(test, sb->s_blocksize, GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, buddy);
-	grp = kunit_kzalloc(test, offsetof(struct ext4_group_info,
+	grp = kunit_kzalloc(test, offsetof(struct ecfs_group_info,
 				bb_counters[MB_NUM_ORDERS(sb)]), GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, grp);
 
-	ret = ext4_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
+	ret = ecfs_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
 	KUNIT_ASSERT_EQ(test, ret, 0);
 
-	grp->bb_free = EXT4_CLUSTERS_PER_GROUP(sb);
+	grp->bb_free = ECFS_CLUSTERS_PER_GROUP(sb);
 	grp->bb_largest_free_order = -1;
 	grp->bb_avg_fragment_size_order = -1;
 	mbt_generate_test_ranges(sb, ranges, TEST_RANGE_COUNT);
@@ -810,13 +810,13 @@ static void test_mb_mark_used(struct kunit *test)
 		test_mb_mark_used_range(test, &e4b, ranges[i].start,
 					ranges[i].len, bitmap, buddy, grp);
 
-	ext4_mb_unload_buddy(&e4b);
+	ecfs_mb_unload_buddy(&e4b);
 }
 
 static void
-test_mb_free_blocks_range(struct kunit *test, struct ext4_buddy *e4b,
-			  ext4_grpblk_t start, ext4_grpblk_t len, void *bitmap,
-			  void *buddy, struct ext4_group_info *grp)
+test_mb_free_blocks_range(struct kunit *test, struct ecfs_buddy *e4b,
+			  ecfs_grpblk_t start, ecfs_grpblk_t len, void *bitmap,
+			  void *buddy, struct ecfs_group_info *grp)
 {
 	struct super_block *sb = (struct super_block *)test->priv;
 	int i;
@@ -825,17 +825,17 @@ test_mb_free_blocks_range(struct kunit *test, struct ext4_buddy *e4b,
 	if (len == 0)
 		return;
 
-	ext4_lock_group(sb, e4b->bd_group);
+	ecfs_lock_group(sb, e4b->bd_group);
 	mb_free_blocks(NULL, e4b, start, len);
-	ext4_unlock_group(sb, e4b->bd_group);
+	ecfs_unlock_group(sb, e4b->bd_group);
 
 	mb_clear_bits(bitmap, start, len);
-	/* bypass bb_free validatoin in ext4_mb_generate_buddy */
+	/* bypass bb_free validatoin in ecfs_mb_generate_buddy */
 	grp->bb_free += len;
 	memset(buddy, 0xff, sb->s_blocksize);
 	for (i = 0; i < MB_NUM_ORDERS(sb); i++)
 		grp->bb_counters[i] = 0;
-	ext4_mb_generate_buddy(sb, buddy, bitmap, 0, grp);
+	ecfs_mb_generate_buddy(sb, buddy, bitmap, 0, grp);
 
 	KUNIT_ASSERT_EQ(test, memcmp(buddy, e4b->bd_buddy, sb->s_blocksize),
 			0);
@@ -845,11 +845,11 @@ test_mb_free_blocks_range(struct kunit *test, struct ext4_buddy *e4b,
 
 static void test_mb_free_blocks(struct kunit *test)
 {
-	struct ext4_buddy e4b;
+	struct ecfs_buddy e4b;
 	struct super_block *sb = (struct super_block *)test->priv;
 	void *bitmap, *buddy;
-	struct ext4_group_info *grp;
-	struct ext4_free_extent ex;
+	struct ecfs_group_info *grp;
+	struct ecfs_free_extent ex;
 	int ret;
 	int i;
 	struct test_range ranges[TEST_RANGE_COUNT];
@@ -862,20 +862,20 @@ static void test_mb_free_blocks(struct kunit *test)
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, bitmap);
 	buddy = kunit_kzalloc(test, sb->s_blocksize, GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, buddy);
-	grp = kunit_kzalloc(test, offsetof(struct ext4_group_info,
+	grp = kunit_kzalloc(test, offsetof(struct ecfs_group_info,
 				bb_counters[MB_NUM_ORDERS(sb)]), GFP_KERNEL);
 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, grp);
 
-	ret = ext4_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
+	ret = ecfs_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
 	KUNIT_ASSERT_EQ(test, ret, 0);
 
 	ex.fe_start = 0;
-	ex.fe_len = EXT4_CLUSTERS_PER_GROUP(sb);
+	ex.fe_len = ECFS_CLUSTERS_PER_GROUP(sb);
 	ex.fe_group = TEST_GOAL_GROUP;
 
-	ext4_lock_group(sb, TEST_GOAL_GROUP);
+	ecfs_lock_group(sb, TEST_GOAL_GROUP);
 	mb_mark_used(&e4b, &ex);
-	ext4_unlock_group(sb, TEST_GOAL_GROUP);
+	ecfs_unlock_group(sb, TEST_GOAL_GROUP);
 
 	grp->bb_free = 0;
 	grp->bb_largest_free_order = -1;
@@ -887,15 +887,15 @@ static void test_mb_free_blocks(struct kunit *test)
 		test_mb_free_blocks_range(test, &e4b, ranges[i].start,
 					  ranges[i].len, bitmap, buddy, grp);
 
-	ext4_mb_unload_buddy(&e4b);
+	ecfs_mb_unload_buddy(&e4b);
 }
 
 #define COUNT_FOR_ESTIMATE 100000
 static void test_mb_mark_used_cost(struct kunit *test)
 {
-	struct ext4_buddy e4b;
+	struct ecfs_buddy e4b;
 	struct super_block *sb = (struct super_block *)test->priv;
-	struct ext4_free_extent ex;
+	struct ecfs_free_extent ex;
 	int ret;
 	struct test_range ranges[TEST_RANGE_COUNT];
 	int i, j;
@@ -905,7 +905,7 @@ static void test_mb_mark_used_cost(struct kunit *test)
 	if (sb->s_blocksize > PAGE_SIZE)
 		kunit_skip(test, "blocksize exceeds pagesize");
 
-	ret = ext4_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
+	ret = ecfs_mb_load_buddy(sb, TEST_GOAL_GROUP, &e4b);
 	KUNIT_ASSERT_EQ(test, ret, 0);
 
 	ex.fe_group = TEST_GOAL_GROUP;
@@ -918,9 +918,9 @@ static void test_mb_mark_used_cost(struct kunit *test)
 
 			ex.fe_start = ranges[i].start;
 			ex.fe_len = ranges[i].len;
-			ext4_lock_group(sb, TEST_GOAL_GROUP);
+			ecfs_lock_group(sb, TEST_GOAL_GROUP);
 			mb_mark_used(&e4b, &ex);
-			ext4_unlock_group(sb, TEST_GOAL_GROUP);
+			ecfs_unlock_group(sb, TEST_GOAL_GROUP);
 		}
 		end = jiffies;
 		all += (end - start);
@@ -929,18 +929,18 @@ static void test_mb_mark_used_cost(struct kunit *test)
 			if (ranges[i].len == 0)
 				continue;
 
-			ext4_lock_group(sb, TEST_GOAL_GROUP);
+			ecfs_lock_group(sb, TEST_GOAL_GROUP);
 			mb_free_blocks(NULL, &e4b, ranges[i].start,
 				       ranges[i].len);
-			ext4_unlock_group(sb, TEST_GOAL_GROUP);
+			ecfs_unlock_group(sb, TEST_GOAL_GROUP);
 		}
 	}
 
 	kunit_info(test, "costed jiffies %lu\n", all);
-	ext4_mb_unload_buddy(&e4b);
+	ecfs_mb_unload_buddy(&e4b);
 }
 
-static const struct mbt_ext4_block_layout mbt_test_layouts[] = {
+static const struct mbt_ecfs_block_layout mbt_test_layouts[] = {
 	{
 		.blocksize_bits = 10,
 		.cluster_bits = 3,
@@ -964,7 +964,7 @@ static const struct mbt_ext4_block_layout mbt_test_layouts[] = {
 	},
 };
 
-static void mbt_show_layout(const struct mbt_ext4_block_layout *layout,
+static void mbt_show_layout(const struct mbt_ecfs_block_layout *layout,
 			    char *desc)
 {
 	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "block_bits=%d cluster_bits=%d "
@@ -988,7 +988,7 @@ static struct kunit_case mbt_test_cases[] = {
 };
 
 static struct kunit_suite mbt_test_suite = {
-	.name = "ext4_mballoc_test",
+	.name = "ecfs_mballoc_test",
 	.init = mbt_kunit_init,
 	.exit = mbt_kunit_exit,
 	.test_cases = mbt_test_cases,

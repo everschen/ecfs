@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- *  linux/fs/ext4/ialloc.c
+ *  linux/fs/ecfs/ialloc.c
  *
  * Copyright (C) 1992, 1993, 1994, 1995
  * Remy Card (card@masi.ibp.fr)
@@ -26,12 +26,12 @@
 
 #include <asm/byteorder.h>
 
-#include "ext4.h"
-#include "ext4_jbd2.h"
+#include "ecfs.h"
+#include "ecfs_jbd2.h"
 #include "xattr.h"
 #include "acl.h"
 
-#include <trace/events/ext4.h>
+#include <trace/events/ecfs.h>
 
 /*
  * ialloc.c contains the inodes allocation and deallocation routines
@@ -52,21 +52,21 @@
  * need to use it within a single byte (to ensure we get endianness right).
  * We can use memset for the rest of the bitmap as there are no other users.
  */
-void ext4_mark_bitmap_end(int start_bit, int end_bit, char *bitmap)
+void ecfs_mark_bitmap_end(int start_bit, int end_bit, char *bitmap)
 {
 	int i;
 
 	if (start_bit >= end_bit)
 		return;
 
-	ext4_debug("mark end bits +%d through +%d used\n", start_bit, end_bit);
+	ecfs_debug("mark end bits +%d through +%d used\n", start_bit, end_bit);
 	for (i = start_bit; i < ((start_bit + 7) & ~7UL); i++)
-		ext4_set_bit(i, bitmap);
+		ecfs_set_bit(i, bitmap);
 	if (i < end_bit)
 		memset(bitmap + (i >> 3), 0xff, (end_bit - i) >> 3);
 }
 
-void ext4_end_bitmap_read(struct buffer_head *bh, int uptodate)
+void ecfs_end_bitmap_read(struct buffer_head *bh, int uptodate)
 {
 	if (uptodate) {
 		set_buffer_uptodate(bh);
@@ -76,40 +76,40 @@ void ext4_end_bitmap_read(struct buffer_head *bh, int uptodate)
 	put_bh(bh);
 }
 
-static int ext4_validate_inode_bitmap(struct super_block *sb,
-				      struct ext4_group_desc *desc,
-				      ext4_group_t block_group,
+static int ecfs_validate_inode_bitmap(struct super_block *sb,
+				      struct ecfs_group_desc *desc,
+				      ecfs_group_t block_group,
 				      struct buffer_head *bh)
 {
-	ext4_fsblk_t	blk;
-	struct ext4_group_info *grp;
+	ecfs_fsblk_t	blk;
+	struct ecfs_group_info *grp;
 
-	if (EXT4_SB(sb)->s_mount_state & EXT4_FC_REPLAY)
+	if (ECFS_SB(sb)->s_mount_state & ECFS_FC_REPLAY)
 		return 0;
 
 	if (buffer_verified(bh))
 		return 0;
 
-	grp = ext4_get_group_info(sb, block_group);
-	if (!grp || EXT4_MB_GRP_IBITMAP_CORRUPT(grp))
+	grp = ecfs_get_group_info(sb, block_group);
+	if (!grp || ECFS_MB_GRP_IBITMAP_CORRUPT(grp))
 		return -EFSCORRUPTED;
 
-	ext4_lock_group(sb, block_group);
+	ecfs_lock_group(sb, block_group);
 	if (buffer_verified(bh))
 		goto verified;
-	blk = ext4_inode_bitmap(sb, desc);
-	if (!ext4_inode_bitmap_csum_verify(sb, desc, bh) ||
-	    ext4_simulate_fail(sb, EXT4_SIM_IBITMAP_CRC)) {
-		ext4_unlock_group(sb, block_group);
-		ext4_error(sb, "Corrupt inode bitmap - block_group = %u, "
+	blk = ecfs_inode_bitmap(sb, desc);
+	if (!ecfs_inode_bitmap_csum_verify(sb, desc, bh) ||
+	    ecfs_simulate_fail(sb, ECFS_SIM_IBITMAP_CRC)) {
+		ecfs_unlock_group(sb, block_group);
+		ecfs_error(sb, "Corrupt inode bitmap - block_group = %u, "
 			   "inode_bitmap = %llu", block_group, blk);
-		ext4_mark_group_bitmap_corrupted(sb, block_group,
-					EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+		ecfs_mark_group_bitmap_corrupted(sb, block_group,
+					ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 		return -EFSBADCRC;
 	}
 	set_buffer_verified(bh);
 verified:
-	ext4_unlock_group(sb, block_group);
+	ecfs_unlock_group(sb, block_group);
 	return 0;
 }
 
@@ -120,30 +120,30 @@ verified:
  * Return buffer_head of bitmap on success, or an ERR_PTR on error.
  */
 static struct buffer_head *
-ext4_read_inode_bitmap(struct super_block *sb, ext4_group_t block_group)
+ecfs_read_inode_bitmap(struct super_block *sb, ecfs_group_t block_group)
 {
-	struct ext4_group_desc *desc;
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	struct ecfs_group_desc *desc;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 	struct buffer_head *bh = NULL;
-	ext4_fsblk_t bitmap_blk;
+	ecfs_fsblk_t bitmap_blk;
 	int err;
 
-	desc = ext4_get_group_desc(sb, block_group, NULL);
+	desc = ecfs_get_group_desc(sb, block_group, NULL);
 	if (!desc)
 		return ERR_PTR(-EFSCORRUPTED);
 
-	bitmap_blk = ext4_inode_bitmap(sb, desc);
+	bitmap_blk = ecfs_inode_bitmap(sb, desc);
 	if ((bitmap_blk <= le32_to_cpu(sbi->s_es->s_first_data_block)) ||
-	    (bitmap_blk >= ext4_blocks_count(sbi->s_es))) {
-		ext4_error(sb, "Invalid inode bitmap blk %llu in "
+	    (bitmap_blk >= ecfs_blocks_count(sbi->s_es))) {
+		ecfs_error(sb, "Invalid inode bitmap blk %llu in "
 			   "block_group %u", bitmap_blk, block_group);
-		ext4_mark_group_bitmap_corrupted(sb, block_group,
-					EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+		ecfs_mark_group_bitmap_corrupted(sb, block_group,
+					ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 		return ERR_PTR(-EFSCORRUPTED);
 	}
 	bh = sb_getblk(sb, bitmap_blk);
 	if (unlikely(!bh)) {
-		ext4_warning(sb, "Cannot read inode bitmap - "
+		ecfs_warning(sb, "Cannot read inode bitmap - "
 			     "block_group = %u, inode_bitmap = %llu",
 			     block_group, bitmap_blk);
 		return ERR_PTR(-ENOMEM);
@@ -157,28 +157,28 @@ ext4_read_inode_bitmap(struct super_block *sb, ext4_group_t block_group)
 		goto verify;
 	}
 
-	ext4_lock_group(sb, block_group);
-	if (ext4_has_group_desc_csum(sb) &&
-	    (desc->bg_flags & cpu_to_le16(EXT4_BG_INODE_UNINIT))) {
+	ecfs_lock_group(sb, block_group);
+	if (ecfs_has_group_desc_csum(sb) &&
+	    (desc->bg_flags & cpu_to_le16(ECFS_BG_INODE_UNINIT))) {
 		if (block_group == 0) {
-			ext4_unlock_group(sb, block_group);
+			ecfs_unlock_group(sb, block_group);
 			unlock_buffer(bh);
-			ext4_error(sb, "Inode bitmap for bg 0 marked "
+			ecfs_error(sb, "Inode bitmap for bg 0 marked "
 				   "uninitialized");
 			err = -EFSCORRUPTED;
 			goto out;
 		}
-		memset(bh->b_data, 0, (EXT4_INODES_PER_GROUP(sb) + 7) / 8);
-		ext4_mark_bitmap_end(EXT4_INODES_PER_GROUP(sb),
+		memset(bh->b_data, 0, (ECFS_INODES_PER_GROUP(sb) + 7) / 8);
+		ecfs_mark_bitmap_end(ECFS_INODES_PER_GROUP(sb),
 				     sb->s_blocksize * 8, bh->b_data);
 		set_bitmap_uptodate(bh);
 		set_buffer_uptodate(bh);
 		set_buffer_verified(bh);
-		ext4_unlock_group(sb, block_group);
+		ecfs_unlock_group(sb, block_group);
 		unlock_buffer(bh);
 		return bh;
 	}
-	ext4_unlock_group(sb, block_group);
+	ecfs_unlock_group(sb, block_group);
 
 	if (buffer_uptodate(bh)) {
 		/*
@@ -192,22 +192,22 @@ ext4_read_inode_bitmap(struct super_block *sb, ext4_group_t block_group)
 	/*
 	 * submit the buffer_head for reading
 	 */
-	trace_ext4_load_inode_bitmap(sb, block_group);
-	ext4_read_bh(bh, REQ_META | REQ_PRIO,
-		     ext4_end_bitmap_read,
-		     ext4_simulate_fail(sb, EXT4_SIM_IBITMAP_EIO));
+	trace_ecfs_load_inode_bitmap(sb, block_group);
+	ecfs_read_bh(bh, REQ_META | REQ_PRIO,
+		     ecfs_end_bitmap_read,
+		     ecfs_simulate_fail(sb, ECFS_SIM_IBITMAP_EIO));
 	if (!buffer_uptodate(bh)) {
 		put_bh(bh);
-		ext4_error_err(sb, EIO, "Cannot read inode bitmap - "
+		ecfs_error_err(sb, EIO, "Cannot read inode bitmap - "
 			       "block_group = %u, inode_bitmap = %llu",
 			       block_group, bitmap_blk);
-		ext4_mark_group_bitmap_corrupted(sb, block_group,
-				EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+		ecfs_mark_group_bitmap_corrupted(sb, block_group,
+				ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 		return ERR_PTR(-EIO);
 	}
 
 verify:
-	err = ext4_validate_inode_bitmap(sb, desc, block_group, bh);
+	err = ecfs_validate_inode_bitmap(sb, desc, block_group, bh);
 	if (err)
 		goto out;
 	return bh;
@@ -232,42 +232,42 @@ out:
  * though), and then we'd have two inodes sharing the
  * same inode number and space on the harddisk.
  */
-void ext4_free_inode(handle_t *handle, struct inode *inode)
+void ecfs_free_inode(handle_t *handle, struct inode *inode)
 {
 	struct super_block *sb = inode->i_sb;
 	int is_directory;
 	unsigned long ino;
 	struct buffer_head *bitmap_bh = NULL;
 	struct buffer_head *bh2;
-	ext4_group_t block_group;
+	ecfs_group_t block_group;
 	unsigned long bit;
-	struct ext4_group_desc *gdp;
-	struct ext4_super_block *es;
-	struct ext4_sb_info *sbi;
+	struct ecfs_group_desc *gdp;
+	struct ecfs_super_block *es;
+	struct ecfs_sb_info *sbi;
 	int fatal = 0, err, count, cleared;
-	struct ext4_group_info *grp;
+	struct ecfs_group_info *grp;
 
 	if (!sb) {
-		printk(KERN_ERR "EXT4-fs: %s:%d: inode on "
+		printk(KERN_ERR "ECFS-fs: %s:%d: inode on "
 		       "nonexistent device\n", __func__, __LINE__);
 		return;
 	}
 	if (atomic_read(&inode->i_count) > 1) {
-		ext4_msg(sb, KERN_ERR, "%s:%d: inode #%lu: count=%d",
+		ecfs_msg(sb, KERN_ERR, "%s:%d: inode #%lu: count=%d",
 			 __func__, __LINE__, inode->i_ino,
 			 atomic_read(&inode->i_count));
 		return;
 	}
 	if (inode->i_nlink) {
-		ext4_msg(sb, KERN_ERR, "%s:%d: inode #%lu: nlink=%d\n",
+		ecfs_msg(sb, KERN_ERR, "%s:%d: inode #%lu: nlink=%d\n",
 			 __func__, __LINE__, inode->i_ino, inode->i_nlink);
 		return;
 	}
-	sbi = EXT4_SB(sb);
+	sbi = ECFS_SB(sb);
 
 	ino = inode->i_ino;
-	ext4_debug("freeing inode %lu\n", ino);
-	trace_ext4_free_inode(inode);
+	ecfs_debug("freeing inode %lu\n", ino);
+	trace_ecfs_free_inode(inode);
 
 	dquot_initialize(inode);
 	dquot_free_inode(inode);
@@ -275,61 +275,61 @@ void ext4_free_inode(handle_t *handle, struct inode *inode)
 	is_directory = S_ISDIR(inode->i_mode);
 
 	/* Do this BEFORE marking the inode not in use or returning an error */
-	ext4_clear_inode(inode);
+	ecfs_clear_inode(inode);
 
 	es = sbi->s_es;
-	if (ino < EXT4_FIRST_INO(sb) || ino > le32_to_cpu(es->s_inodes_count)) {
-		ext4_error(sb, "reserved or nonexistent inode %lu", ino);
+	if (ino < ECFS_FIRST_INO(sb) || ino > le32_to_cpu(es->s_inodes_count)) {
+		ecfs_error(sb, "reserved or nonexistent inode %lu", ino);
 		goto error_return;
 	}
-	block_group = (ino - 1) / EXT4_INODES_PER_GROUP(sb);
-	bit = (ino - 1) % EXT4_INODES_PER_GROUP(sb);
-	bitmap_bh = ext4_read_inode_bitmap(sb, block_group);
+	block_group = (ino - 1) / ECFS_INODES_PER_GROUP(sb);
+	bit = (ino - 1) % ECFS_INODES_PER_GROUP(sb);
+	bitmap_bh = ecfs_read_inode_bitmap(sb, block_group);
 	/* Don't bother if the inode bitmap is corrupt. */
 	if (IS_ERR(bitmap_bh)) {
 		fatal = PTR_ERR(bitmap_bh);
 		bitmap_bh = NULL;
 		goto error_return;
 	}
-	if (!(sbi->s_mount_state & EXT4_FC_REPLAY)) {
-		grp = ext4_get_group_info(sb, block_group);
-		if (!grp || unlikely(EXT4_MB_GRP_IBITMAP_CORRUPT(grp))) {
+	if (!(sbi->s_mount_state & ECFS_FC_REPLAY)) {
+		grp = ecfs_get_group_info(sb, block_group);
+		if (!grp || unlikely(ECFS_MB_GRP_IBITMAP_CORRUPT(grp))) {
 			fatal = -EFSCORRUPTED;
 			goto error_return;
 		}
 	}
 
 	BUFFER_TRACE(bitmap_bh, "get_write_access");
-	fatal = ext4_journal_get_write_access(handle, sb, bitmap_bh,
-					      EXT4_JTR_NONE);
+	fatal = ecfs_journal_get_write_access(handle, sb, bitmap_bh,
+					      ECFS_JTR_NONE);
 	if (fatal)
 		goto error_return;
 
 	fatal = -ESRCH;
-	gdp = ext4_get_group_desc(sb, block_group, &bh2);
+	gdp = ecfs_get_group_desc(sb, block_group, &bh2);
 	if (gdp) {
 		BUFFER_TRACE(bh2, "get_write_access");
-		fatal = ext4_journal_get_write_access(handle, sb, bh2,
-						      EXT4_JTR_NONE);
+		fatal = ecfs_journal_get_write_access(handle, sb, bh2,
+						      ECFS_JTR_NONE);
 	}
-	ext4_lock_group(sb, block_group);
-	cleared = ext4_test_and_clear_bit(bit, bitmap_bh->b_data);
+	ecfs_lock_group(sb, block_group);
+	cleared = ecfs_test_and_clear_bit(bit, bitmap_bh->b_data);
 	if (fatal || !cleared) {
-		ext4_unlock_group(sb, block_group);
+		ecfs_unlock_group(sb, block_group);
 		goto out;
 	}
 
-	count = ext4_free_inodes_count(sb, gdp) + 1;
-	ext4_free_inodes_set(sb, gdp, count);
+	count = ecfs_free_inodes_count(sb, gdp) + 1;
+	ecfs_free_inodes_set(sb, gdp, count);
 	if (is_directory) {
-		count = ext4_used_dirs_count(sb, gdp) - 1;
-		ext4_used_dirs_set(sb, gdp, count);
+		count = ecfs_used_dirs_count(sb, gdp) - 1;
+		ecfs_used_dirs_set(sb, gdp, count);
 		if (percpu_counter_initialized(&sbi->s_dirs_counter))
 			percpu_counter_dec(&sbi->s_dirs_counter);
 	}
-	ext4_inode_bitmap_csum_set(sb, gdp, bitmap_bh);
-	ext4_group_desc_csum_set(sb, block_group, gdp);
-	ext4_unlock_group(sb, block_group);
+	ecfs_inode_bitmap_csum_set(sb, gdp, bitmap_bh);
+	ecfs_group_desc_csum_set(sb, block_group, gdp);
+	ecfs_unlock_group(sb, block_group);
 
 	if (percpu_counter_initialized(&sbi->s_freeinodes_counter))
 		percpu_counter_inc(&sbi->s_freeinodes_counter);
@@ -337,28 +337,28 @@ void ext4_free_inode(handle_t *handle, struct inode *inode)
 		struct flex_groups *fg;
 
 		fg = sbi_array_rcu_deref(sbi, s_flex_groups,
-					 ext4_flex_group(sbi, block_group));
+					 ecfs_flex_group(sbi, block_group));
 		atomic_inc(&fg->free_inodes);
 		if (is_directory)
 			atomic_dec(&fg->used_dirs);
 	}
-	BUFFER_TRACE(bh2, "call ext4_handle_dirty_metadata");
-	fatal = ext4_handle_dirty_metadata(handle, NULL, bh2);
+	BUFFER_TRACE(bh2, "call ecfs_handle_dirty_metadata");
+	fatal = ecfs_handle_dirty_metadata(handle, NULL, bh2);
 out:
 	if (cleared) {
-		BUFFER_TRACE(bitmap_bh, "call ext4_handle_dirty_metadata");
-		err = ext4_handle_dirty_metadata(handle, NULL, bitmap_bh);
+		BUFFER_TRACE(bitmap_bh, "call ecfs_handle_dirty_metadata");
+		err = ecfs_handle_dirty_metadata(handle, NULL, bitmap_bh);
 		if (!fatal)
 			fatal = err;
 	} else {
-		ext4_error(sb, "bit already cleared for inode %lu", ino);
-		ext4_mark_group_bitmap_corrupted(sb, block_group,
-					EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+		ecfs_error(sb, "bit already cleared for inode %lu", ino);
+		ecfs_mark_group_bitmap_corrupted(sb, block_group,
+					ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 	}
 
 error_return:
 	brelse(bitmap_bh);
-	ext4_std_error(sb, fatal);
+	ecfs_std_error(sb, fatal);
 }
 
 struct orlov_stats {
@@ -372,13 +372,13 @@ struct orlov_stats {
  * for a particular block group or flex_bg.  If flex_size is 1, then g
  * is a block group number; otherwise it is flex_bg number.
  */
-static void get_orlov_stats(struct super_block *sb, ext4_group_t g,
+static void get_orlov_stats(struct super_block *sb, ecfs_group_t g,
 			    int flex_size, struct orlov_stats *stats)
 {
-	struct ext4_group_desc *desc;
+	struct ecfs_group_desc *desc;
 
 	if (flex_size > 1) {
-		struct flex_groups *fg = sbi_array_rcu_deref(EXT4_SB(sb),
+		struct flex_groups *fg = sbi_array_rcu_deref(ECFS_SB(sb),
 							     s_flex_groups, g);
 		stats->free_inodes = atomic_read(&fg->free_inodes);
 		stats->free_clusters = atomic64_read(&fg->free_clusters);
@@ -386,11 +386,11 @@ static void get_orlov_stats(struct super_block *sb, ext4_group_t g,
 		return;
 	}
 
-	desc = ext4_get_group_desc(sb, g, NULL);
+	desc = ecfs_get_group_desc(sb, g, NULL);
 	if (desc) {
-		stats->free_inodes = ext4_free_inodes_count(sb, desc);
-		stats->free_clusters = ext4_free_group_clusters(sb, desc);
-		stats->used_dirs = ext4_used_dirs_count(sb, desc);
+		stats->free_inodes = ecfs_free_inodes_count(sb, desc);
+		stats->free_clusters = ecfs_free_group_clusters(sb, desc);
+		stats->used_dirs = ecfs_used_dirs_count(sb, desc);
 	} else {
 		stats->free_inodes = 0;
 		stats->free_clusters = 0;
@@ -420,22 +420,22 @@ static void get_orlov_stats(struct super_block *sb, ext4_group_t g,
  */
 
 static int find_group_orlov(struct super_block *sb, struct inode *parent,
-			    ext4_group_t *group, umode_t mode,
+			    ecfs_group_t *group, umode_t mode,
 			    const struct qstr *qstr)
 {
-	ext4_group_t parent_group = EXT4_I(parent)->i_block_group;
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
-	ext4_group_t real_ngroups = ext4_get_groups_count(sb);
-	int inodes_per_group = EXT4_INODES_PER_GROUP(sb);
+	ecfs_group_t parent_group = ECFS_I(parent)->i_block_group;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+	ecfs_group_t real_ngroups = ecfs_get_groups_count(sb);
+	int inodes_per_group = ECFS_INODES_PER_GROUP(sb);
 	unsigned int freei, avefreei, grp_free;
-	ext4_fsblk_t freec, avefreec;
+	ecfs_fsblk_t freec, avefreec;
 	unsigned int ndirs;
 	int max_dirs, min_inodes;
-	ext4_grpblk_t min_clusters;
-	ext4_group_t i, grp, g, ngroups;
-	struct ext4_group_desc *desc;
+	ecfs_grpblk_t min_clusters;
+	ecfs_group_t i, grp, g, ngroups;
+	struct ecfs_group_desc *desc;
 	struct orlov_stats stats;
-	int flex_size = ext4_flex_bg_size(sbi);
+	int flex_size = ecfs_flex_bg_size(sbi);
 	struct dx_hash_info hinfo;
 
 	ngroups = real_ngroups;
@@ -454,14 +454,14 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent,
 
 	if (S_ISDIR(mode) &&
 	    ((parent == d_inode(sb->s_root)) ||
-	     (ext4_test_inode_flag(parent, EXT4_INODE_TOPDIR)))) {
+	     (ecfs_test_inode_flag(parent, ECFS_INODE_TOPDIR)))) {
 		int best_ndir = inodes_per_group;
 		int ret = -1;
 
 		if (qstr) {
 			hinfo.hash_version = DX_HASH_HALF_MD4;
 			hinfo.seed = sbi->s_hash_seed;
-			ext4fs_dirhash(parent, qstr->name, qstr->len, &hinfo);
+			ecfsfs_dirhash(parent, qstr->name, qstr->len, &hinfo);
 			parent_group = hinfo.hash % ngroups;
 		} else
 			parent_group = get_random_u32_below(ngroups);
@@ -493,14 +493,14 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent,
 		 * inode tables.  Block allocation decisions will do
 		 * something similar, although regular files will
 		 * start at 2nd block group of the flexgroup.  See
-		 * ext4_ext_find_goal() and ext4_find_near().
+		 * ecfs_ext_find_goal() and ecfs_find_near().
 		 */
 		grp *= flex_size;
 		for (i = 0; i < flex_size; i++) {
 			if (grp+i >= real_ngroups)
 				break;
-			desc = ext4_get_group_desc(sb, grp+i, NULL);
-			if (desc && ext4_free_inodes_count(sb, desc)) {
+			desc = ecfs_get_group_desc(sb, grp+i, NULL);
+			if (desc && ecfs_free_inodes_count(sb, desc)) {
 				*group = grp+i;
 				return 0;
 			}
@@ -512,7 +512,7 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent,
 	min_inodes = avefreei - inodes_per_group*flex_size / 4;
 	if (min_inodes < 1)
 		min_inodes = 1;
-	min_clusters = avefreec - EXT4_CLUSTERS_PER_GROUP(sb)*flex_size / 4;
+	min_clusters = avefreec - ECFS_CLUSTERS_PER_GROUP(sb)*flex_size / 4;
 	if (min_clusters < 0)
 		min_clusters = 0;
 
@@ -520,8 +520,8 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent,
 	 * Start looking in the flex group where we last allocated an
 	 * inode for this parent directory
 	 */
-	if (EXT4_I(parent)->i_last_alloc_group != ~0) {
-		parent_group = EXT4_I(parent)->i_last_alloc_group;
+	if (ECFS_I(parent)->i_last_alloc_group != ~0) {
+		parent_group = ECFS_I(parent)->i_last_alloc_group;
 		if (flex_size > 1)
 			parent_group >>= sbi->s_log_groups_per_flex;
 	}
@@ -542,12 +542,12 @@ fallback:
 	ngroups = real_ngroups;
 	avefreei = freei / ngroups;
 fallback_retry:
-	parent_group = EXT4_I(parent)->i_block_group;
+	parent_group = ECFS_I(parent)->i_block_group;
 	for (i = 0; i < ngroups; i++) {
 		grp = (parent_group + i) % ngroups;
-		desc = ext4_get_group_desc(sb, grp, NULL);
+		desc = ecfs_get_group_desc(sb, grp, NULL);
 		if (desc) {
-			grp_free = ext4_free_inodes_count(sb, desc);
+			grp_free = ecfs_free_inodes_count(sb, desc);
 			if (grp_free && grp_free >= avefreei) {
 				*group = grp;
 				return 0;
@@ -568,12 +568,12 @@ fallback_retry:
 }
 
 static int find_group_other(struct super_block *sb, struct inode *parent,
-			    ext4_group_t *group, umode_t mode)
+			    ecfs_group_t *group, umode_t mode)
 {
-	ext4_group_t parent_group = EXT4_I(parent)->i_block_group;
-	ext4_group_t i, last, ngroups = ext4_get_groups_count(sb);
-	struct ext4_group_desc *desc;
-	int flex_size = ext4_flex_bg_size(EXT4_SB(sb));
+	ecfs_group_t parent_group = ECFS_I(parent)->i_block_group;
+	ecfs_group_t i, last, ngroups = ecfs_get_groups_count(sb);
+	struct ecfs_group_desc *desc;
+	int flex_size = ecfs_flex_bg_size(ECFS_SB(sb));
 
 	/*
 	 * Try to place the inode is the same flex group as its
@@ -591,15 +591,15 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 		if (last > ngroups)
 			last = ngroups;
 		for  (i = parent_group; i < last; i++) {
-			desc = ext4_get_group_desc(sb, i, NULL);
-			if (desc && ext4_free_inodes_count(sb, desc)) {
+			desc = ecfs_get_group_desc(sb, i, NULL);
+			if (desc && ecfs_free_inodes_count(sb, desc)) {
 				*group = i;
 				return 0;
 			}
 		}
-		if (!retry && EXT4_I(parent)->i_last_alloc_group != ~0) {
+		if (!retry && ECFS_I(parent)->i_last_alloc_group != ~0) {
 			retry = 1;
-			parent_group = EXT4_I(parent)->i_last_alloc_group;
+			parent_group = ECFS_I(parent)->i_last_alloc_group;
 			goto try_again;
 		}
 		/*
@@ -617,9 +617,9 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 	 * Try to place the inode in its parent directory
 	 */
 	*group = parent_group;
-	desc = ext4_get_group_desc(sb, *group, NULL);
-	if (desc && ext4_free_inodes_count(sb, desc) &&
-	    ext4_free_group_clusters(sb, desc))
+	desc = ecfs_get_group_desc(sb, *group, NULL);
+	if (desc && ecfs_free_inodes_count(sb, desc) &&
+	    ecfs_free_group_clusters(sb, desc))
 		return 0;
 
 	/*
@@ -641,9 +641,9 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 		*group += i;
 		if (*group >= ngroups)
 			*group -= ngroups;
-		desc = ext4_get_group_desc(sb, *group, NULL);
-		if (desc && ext4_free_inodes_count(sb, desc) &&
-		    ext4_free_group_clusters(sb, desc))
+		desc = ecfs_get_group_desc(sb, *group, NULL);
+		if (desc && ecfs_free_inodes_count(sb, desc) &&
+		    ecfs_free_group_clusters(sb, desc))
 			return 0;
 	}
 
@@ -655,8 +655,8 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 	for (i = 0; i < ngroups; i++) {
 		if (++*group >= ngroups)
 			*group = 0;
-		desc = ext4_get_group_desc(sb, *group, NULL);
-		if (desc && ext4_free_inodes_count(sb, desc))
+		desc = ecfs_get_group_desc(sb, *group, NULL);
+		if (desc && ecfs_free_inodes_count(sb, desc))
 			return 0;
 	}
 
@@ -672,21 +672,21 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 #define RECENTCY_MIN	60
 #define RECENTCY_DIRTY	300
 
-static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
+static int recently_deleted(struct super_block *sb, ecfs_group_t group, int ino)
 {
-	struct ext4_group_desc	*gdp;
-	struct ext4_inode	*raw_inode;
+	struct ecfs_group_desc	*gdp;
+	struct ecfs_inode	*raw_inode;
 	struct buffer_head	*bh;
-	int inodes_per_block = EXT4_SB(sb)->s_inodes_per_block;
+	int inodes_per_block = ECFS_SB(sb)->s_inodes_per_block;
 	int offset, ret = 0;
 	int recentcy = RECENTCY_MIN;
 	u32 dtime, now;
 
-	gdp = ext4_get_group_desc(sb, group, NULL);
+	gdp = ecfs_get_group_desc(sb, group, NULL);
 	if (unlikely(!gdp))
 		return 0;
 
-	bh = sb_find_get_block(sb, ext4_inode_table(sb, gdp) +
+	bh = sb_find_get_block(sb, ecfs_inode_table(sb, gdp) +
 		       (ino / inodes_per_block));
 	if (!bh || !buffer_uptodate(bh))
 		/*
@@ -696,8 +696,8 @@ static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
 		 */
 		goto out;
 
-	offset = (ino % inodes_per_block) * EXT4_INODE_SIZE(sb);
-	raw_inode = (struct ext4_inode *) (bh->b_data + offset);
+	offset = (ino % inodes_per_block) * ECFS_INODE_SIZE(sb);
+	raw_inode = (struct ecfs_inode *) (bh->b_data + offset);
 
 	/* i_dtime is only 32 bits on disk, but we only care about relative
 	 * times in the range of a few minutes (i.e. long enough to sync a
@@ -716,29 +716,29 @@ out:
 	return ret;
 }
 
-static int find_inode_bit(struct super_block *sb, ext4_group_t group,
+static int find_inode_bit(struct super_block *sb, ecfs_group_t group,
 			  struct buffer_head *bitmap, unsigned long *ino)
 {
-	bool check_recently_deleted = EXT4_SB(sb)->s_journal == NULL;
-	unsigned long recently_deleted_ino = EXT4_INODES_PER_GROUP(sb);
+	bool check_recently_deleted = ECFS_SB(sb)->s_journal == NULL;
+	unsigned long recently_deleted_ino = ECFS_INODES_PER_GROUP(sb);
 
 next:
-	*ino = ext4_find_next_zero_bit((unsigned long *)
+	*ino = ecfs_find_next_zero_bit((unsigned long *)
 				       bitmap->b_data,
-				       EXT4_INODES_PER_GROUP(sb), *ino);
-	if (*ino >= EXT4_INODES_PER_GROUP(sb))
+				       ECFS_INODES_PER_GROUP(sb), *ino);
+	if (*ino >= ECFS_INODES_PER_GROUP(sb))
 		goto not_found;
 
 	if (check_recently_deleted && recently_deleted(sb, group, *ino)) {
 		recently_deleted_ino = *ino;
 		*ino = *ino + 1;
-		if (*ino < EXT4_INODES_PER_GROUP(sb))
+		if (*ino < ECFS_INODES_PER_GROUP(sb))
 			goto next;
 		goto not_found;
 	}
 	return 1;
 not_found:
-	if (recently_deleted_ino >= EXT4_INODES_PER_GROUP(sb))
+	if (recently_deleted_ino >= ECFS_INODES_PER_GROUP(sb))
 		return 0;
 	/*
 	 * Not reusing recently deleted inodes is mostly a preference. We don't
@@ -750,92 +750,92 @@ not_found:
 	return 1;
 }
 
-int ext4_mark_inode_used(struct super_block *sb, int ino)
+int ecfs_mark_inode_used(struct super_block *sb, int ino)
 {
-	unsigned long max_ino = le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count);
+	unsigned long max_ino = le32_to_cpu(ECFS_SB(sb)->s_es->s_inodes_count);
 	struct buffer_head *inode_bitmap_bh = NULL, *group_desc_bh = NULL;
-	struct ext4_group_desc *gdp;
-	ext4_group_t group;
+	struct ecfs_group_desc *gdp;
+	ecfs_group_t group;
 	int bit;
 	int err;
 
-	if (ino < EXT4_FIRST_INO(sb) || ino > max_ino)
+	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		return -EFSCORRUPTED;
 
-	group = (ino - 1) / EXT4_INODES_PER_GROUP(sb);
-	bit = (ino - 1) % EXT4_INODES_PER_GROUP(sb);
-	inode_bitmap_bh = ext4_read_inode_bitmap(sb, group);
+	group = (ino - 1) / ECFS_INODES_PER_GROUP(sb);
+	bit = (ino - 1) % ECFS_INODES_PER_GROUP(sb);
+	inode_bitmap_bh = ecfs_read_inode_bitmap(sb, group);
 	if (IS_ERR(inode_bitmap_bh))
 		return PTR_ERR(inode_bitmap_bh);
 
-	if (ext4_test_bit(bit, inode_bitmap_bh->b_data)) {
+	if (ecfs_test_bit(bit, inode_bitmap_bh->b_data)) {
 		err = 0;
 		goto out;
 	}
 
-	gdp = ext4_get_group_desc(sb, group, &group_desc_bh);
+	gdp = ecfs_get_group_desc(sb, group, &group_desc_bh);
 	if (!gdp) {
 		err = -EINVAL;
 		goto out;
 	}
 
-	ext4_set_bit(bit, inode_bitmap_bh->b_data);
+	ecfs_set_bit(bit, inode_bitmap_bh->b_data);
 
-	BUFFER_TRACE(inode_bitmap_bh, "call ext4_handle_dirty_metadata");
-	err = ext4_handle_dirty_metadata(NULL, NULL, inode_bitmap_bh);
+	BUFFER_TRACE(inode_bitmap_bh, "call ecfs_handle_dirty_metadata");
+	err = ecfs_handle_dirty_metadata(NULL, NULL, inode_bitmap_bh);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto out;
 	}
 	err = sync_dirty_buffer(inode_bitmap_bh);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto out;
 	}
 
 	/* We may have to initialize the block bitmap if it isn't already */
-	if (ext4_has_group_desc_csum(sb) &&
-	    gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT)) {
+	if (ecfs_has_group_desc_csum(sb) &&
+	    gdp->bg_flags & cpu_to_le16(ECFS_BG_BLOCK_UNINIT)) {
 		struct buffer_head *block_bitmap_bh;
 
-		block_bitmap_bh = ext4_read_block_bitmap(sb, group);
+		block_bitmap_bh = ecfs_read_block_bitmap(sb, group);
 		if (IS_ERR(block_bitmap_bh)) {
 			err = PTR_ERR(block_bitmap_bh);
 			goto out;
 		}
 
 		BUFFER_TRACE(block_bitmap_bh, "dirty block bitmap");
-		err = ext4_handle_dirty_metadata(NULL, NULL, block_bitmap_bh);
+		err = ecfs_handle_dirty_metadata(NULL, NULL, block_bitmap_bh);
 		sync_dirty_buffer(block_bitmap_bh);
 
 		/* recheck and clear flag under lock if we still need to */
-		ext4_lock_group(sb, group);
-		if (ext4_has_group_desc_csum(sb) &&
-		    (gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT))) {
-			gdp->bg_flags &= cpu_to_le16(~EXT4_BG_BLOCK_UNINIT);
-			ext4_free_group_clusters_set(sb, gdp,
-				ext4_free_clusters_after_init(sb, group, gdp));
-			ext4_block_bitmap_csum_set(sb, gdp, block_bitmap_bh);
-			ext4_group_desc_csum_set(sb, group, gdp);
+		ecfs_lock_group(sb, group);
+		if (ecfs_has_group_desc_csum(sb) &&
+		    (gdp->bg_flags & cpu_to_le16(ECFS_BG_BLOCK_UNINIT))) {
+			gdp->bg_flags &= cpu_to_le16(~ECFS_BG_BLOCK_UNINIT);
+			ecfs_free_group_clusters_set(sb, gdp,
+				ecfs_free_clusters_after_init(sb, group, gdp));
+			ecfs_block_bitmap_csum_set(sb, gdp, block_bitmap_bh);
+			ecfs_group_desc_csum_set(sb, group, gdp);
 		}
-		ext4_unlock_group(sb, group);
+		ecfs_unlock_group(sb, group);
 		brelse(block_bitmap_bh);
 
 		if (err) {
-			ext4_std_error(sb, err);
+			ecfs_std_error(sb, err);
 			goto out;
 		}
 	}
 
 	/* Update the relevant bg descriptor fields */
-	if (ext4_has_group_desc_csum(sb)) {
+	if (ecfs_has_group_desc_csum(sb)) {
 		int free;
 
-		ext4_lock_group(sb, group); /* while we modify the bg desc */
-		free = EXT4_INODES_PER_GROUP(sb) -
-			ext4_itable_unused_count(sb, gdp);
-		if (gdp->bg_flags & cpu_to_le16(EXT4_BG_INODE_UNINIT)) {
-			gdp->bg_flags &= cpu_to_le16(~EXT4_BG_INODE_UNINIT);
+		ecfs_lock_group(sb, group); /* while we modify the bg desc */
+		free = ECFS_INODES_PER_GROUP(sb) -
+			ecfs_itable_unused_count(sb, gdp);
+		if (gdp->bg_flags & cpu_to_le16(ECFS_BG_INODE_UNINIT)) {
+			gdp->bg_flags &= cpu_to_le16(~ECFS_BG_INODE_UNINIT);
 			free = 0;
 		}
 
@@ -845,41 +845,41 @@ int ext4_mark_inode_used(struct super_block *sb, int ino)
 		 * we need to update the bg_itable_unused count
 		 */
 		if (bit >= free)
-			ext4_itable_unused_set(sb, gdp,
-					(EXT4_INODES_PER_GROUP(sb) - bit - 1));
+			ecfs_itable_unused_set(sb, gdp,
+					(ECFS_INODES_PER_GROUP(sb) - bit - 1));
 	} else {
-		ext4_lock_group(sb, group);
+		ecfs_lock_group(sb, group);
 	}
 
-	ext4_free_inodes_set(sb, gdp, ext4_free_inodes_count(sb, gdp) - 1);
-	if (ext4_has_group_desc_csum(sb)) {
-		ext4_inode_bitmap_csum_set(sb, gdp, inode_bitmap_bh);
-		ext4_group_desc_csum_set(sb, group, gdp);
+	ecfs_free_inodes_set(sb, gdp, ecfs_free_inodes_count(sb, gdp) - 1);
+	if (ecfs_has_group_desc_csum(sb)) {
+		ecfs_inode_bitmap_csum_set(sb, gdp, inode_bitmap_bh);
+		ecfs_group_desc_csum_set(sb, group, gdp);
 	}
 
-	ext4_unlock_group(sb, group);
-	err = ext4_handle_dirty_metadata(NULL, NULL, group_desc_bh);
+	ecfs_unlock_group(sb, group);
+	err = ecfs_handle_dirty_metadata(NULL, NULL, group_desc_bh);
 	sync_dirty_buffer(group_desc_bh);
 out:
 	brelse(inode_bitmap_bh);
 	return err;
 }
 
-static int ext4_xattr_credits_for_new_inode(struct inode *dir, mode_t mode,
+static int ecfs_xattr_credits_for_new_inode(struct inode *dir, mode_t mode,
 					    bool encrypt)
 {
 	struct super_block *sb = dir->i_sb;
 	int nblocks = 0;
-#ifdef CONFIG_EXT4_FS_POSIX_ACL
+#ifdef CONFIG_ECFS_FS_POSIX_ACL
 	struct posix_acl *p = get_inode_acl(dir, ACL_TYPE_DEFAULT);
 
 	if (IS_ERR(p))
 		return PTR_ERR(p);
 	if (p) {
-		int acl_size = p->a_count * sizeof(ext4_acl_entry);
+		int acl_size = p->a_count * sizeof(ecfs_acl_entry);
 
 		nblocks += (S_ISDIR(mode) ? 2 : 1) *
-			__ext4_xattr_set_credits(sb, NULL /* inode */,
+			__ecfs_xattr_set_credits(sb, NULL /* inode */,
 						 NULL /* block_bh */, acl_size,
 						 true /* is_create */);
 		posix_acl_release(p);
@@ -898,13 +898,13 @@ static int ext4_xattr_credits_for_new_inode(struct inode *dir, mode_t mode,
 		 * In practice they are under 128 bytes.
 		 */
 		nblocks += num_security_xattrs *
-			__ext4_xattr_set_credits(sb, NULL /* inode */,
+			__ecfs_xattr_set_credits(sb, NULL /* inode */,
 						 NULL /* block_bh */, 1024,
 						 true /* is_create */);
 	}
 #endif
 	if (encrypt)
-		nblocks += __ext4_xattr_set_credits(sb,
+		nblocks += __ecfs_xattr_set_credits(sb,
 						    NULL /* inode */,
 						    NULL /* block_bh */,
 						    FSCRYPT_SET_CONTEXT_MAX_SIZE,
@@ -922,7 +922,7 @@ static int ext4_xattr_credits_for_new_inode(struct inode *dir, mode_t mode,
  * For other inodes, search forward from the parent directory's block
  * group to find a free inode.
  */
-struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
+struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 			       handle_t *handle, struct inode *dir,
 			       umode_t mode, const struct qstr *qstr,
 			       __u32 goal, uid_t *owner, __u32 i_flags,
@@ -932,17 +932,17 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 	struct super_block *sb;
 	struct buffer_head *inode_bitmap_bh = NULL;
 	struct buffer_head *group_desc_bh;
-	ext4_group_t ngroups, group = 0;
+	ecfs_group_t ngroups, group = 0;
 	unsigned long ino = 0;
 	struct inode *inode;
-	struct ext4_group_desc *gdp = NULL;
-	struct ext4_inode_info *ei;
-	struct ext4_sb_info *sbi;
+	struct ecfs_group_desc *gdp = NULL;
+	struct ecfs_inode_info *ei;
+	struct ecfs_sb_info *sbi;
 	int ret2, err;
 	struct inode *ret;
-	ext4_group_t i;
-	ext4_group_t flex_group;
-	struct ext4_group_info *grp = NULL;
+	ecfs_group_t i;
+	ecfs_group_t flex_group;
+	struct ecfs_group_info *grp = NULL;
 	bool encrypt = false;
 
 	/* Cannot create files in a deleted directory */
@@ -950,18 +950,18 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 		return ERR_PTR(-EPERM);
 
 	sb = dir->i_sb;
-	sbi = EXT4_SB(sb);
+	sbi = ECFS_SB(sb);
 
-	ret2 = ext4_emergency_state(sb);
+	ret2 = ecfs_emergency_state(sb);
 	if (unlikely(ret2))
 		return ERR_PTR(ret2);
 
-	ngroups = ext4_get_groups_count(sb);
-	trace_ext4_request_inode(dir, mode);
+	ngroups = ecfs_get_groups_count(sb);
+	trace_ecfs_request_inode(dir, mode);
 	inode = new_inode(sb);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
-	ei = EXT4_I(inode);
+	ei = ECFS_I(inode);
 
 	/*
 	 * Initialize owners and quota early so that we don't have to account
@@ -979,13 +979,13 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 	} else
 		inode_init_owner(idmap, inode, dir, mode);
 
-	if (ext4_has_feature_project(sb) &&
-	    ext4_test_inode_flag(dir, EXT4_INODE_PROJINHERIT))
-		ei->i_projid = EXT4_I(dir)->i_projid;
+	if (ecfs_has_feature_project(sb) &&
+	    ecfs_test_inode_flag(dir, ECFS_INODE_PROJINHERIT))
+		ei->i_projid = ECFS_I(dir)->i_projid;
 	else
-		ei->i_projid = make_kprojid(&init_user_ns, EXT4_DEF_PROJID);
+		ei->i_projid = make_kprojid(&init_user_ns, ECFS_DEF_PROJID);
 
-	if (!(i_flags & EXT4_EA_INODE_FL)) {
+	if (!(i_flags & ECFS_EA_INODE_FL)) {
 		err = fscrypt_prepare_new_inode(dir, inode, &encrypt);
 		if (err)
 			goto out;
@@ -995,8 +995,8 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 	if (err)
 		goto out;
 
-	if (!handle && sbi->s_journal && !(i_flags & EXT4_EA_INODE_FL)) {
-		ret2 = ext4_xattr_credits_for_new_inode(dir, mode, encrypt);
+	if (!handle && sbi->s_journal && !(i_flags & ECFS_EA_INODE_FL)) {
+		ret2 = ecfs_xattr_credits_for_new_inode(dir, mode, encrypt);
 		if (ret2 < 0) {
 			err = ret2;
 			goto out;
@@ -1008,8 +1008,8 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 		goal = sbi->s_inode_goal;
 
 	if (goal && goal <= le32_to_cpu(sbi->s_es->s_inodes_count)) {
-		group = (goal - 1) / EXT4_INODES_PER_GROUP(sb);
-		ino = (goal - 1) % EXT4_INODES_PER_GROUP(sb);
+		group = (goal - 1) / ECFS_INODES_PER_GROUP(sb);
+		ino = (goal - 1) % ECFS_INODES_PER_GROUP(sb);
 		ret2 = 0;
 		goto got_group;
 	}
@@ -1020,7 +1020,7 @@ struct inode *__ext4_new_inode(struct mnt_idmap *idmap,
 		ret2 = find_group_other(sb, dir, &group, mode);
 
 got_group:
-	EXT4_I(dir)->i_last_alloc_group = group;
+	ECFS_I(dir)->i_last_alloc_group = group;
 	err = -ENOSPC;
 	if (ret2 == -1)
 		goto out;
@@ -1033,82 +1033,82 @@ got_group:
 	for (i = 0; i < ngroups; i++, ino = 0) {
 		err = -EIO;
 
-		gdp = ext4_get_group_desc(sb, group, &group_desc_bh);
+		gdp = ecfs_get_group_desc(sb, group, &group_desc_bh);
 		if (!gdp)
 			goto out;
 
 		/*
 		 * Check free inodes count before loading bitmap.
 		 */
-		if (ext4_free_inodes_count(sb, gdp) == 0)
+		if (ecfs_free_inodes_count(sb, gdp) == 0)
 			goto next_group;
 
-		if (!(sbi->s_mount_state & EXT4_FC_REPLAY)) {
-			grp = ext4_get_group_info(sb, group);
+		if (!(sbi->s_mount_state & ECFS_FC_REPLAY)) {
+			grp = ecfs_get_group_info(sb, group);
 			/*
 			 * Skip groups with already-known suspicious inode
 			 * tables
 			 */
-			if (!grp || EXT4_MB_GRP_IBITMAP_CORRUPT(grp))
+			if (!grp || ECFS_MB_GRP_IBITMAP_CORRUPT(grp))
 				goto next_group;
 		}
 
 		brelse(inode_bitmap_bh);
-		inode_bitmap_bh = ext4_read_inode_bitmap(sb, group);
+		inode_bitmap_bh = ecfs_read_inode_bitmap(sb, group);
 		/* Skip groups with suspicious inode tables */
 		if (IS_ERR(inode_bitmap_bh)) {
 			inode_bitmap_bh = NULL;
 			goto next_group;
 		}
-		if (!(sbi->s_mount_state & EXT4_FC_REPLAY) &&
-		    EXT4_MB_GRP_IBITMAP_CORRUPT(grp))
+		if (!(sbi->s_mount_state & ECFS_FC_REPLAY) &&
+		    ECFS_MB_GRP_IBITMAP_CORRUPT(grp))
 			goto next_group;
 
 		ret2 = find_inode_bit(sb, group, inode_bitmap_bh, &ino);
 		if (!ret2)
 			goto next_group;
 
-		if (group == 0 && (ino + 1) < EXT4_FIRST_INO(sb)) {
-			ext4_error(sb, "reserved inode found cleared - "
+		if (group == 0 && (ino + 1) < ECFS_FIRST_INO(sb)) {
+			ecfs_error(sb, "reserved inode found cleared - "
 				   "inode=%lu", ino + 1);
-			ext4_mark_group_bitmap_corrupted(sb, group,
-					EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+			ecfs_mark_group_bitmap_corrupted(sb, group,
+					ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 			goto next_group;
 		}
 
-		if ((!(sbi->s_mount_state & EXT4_FC_REPLAY)) && !handle) {
+		if ((!(sbi->s_mount_state & ECFS_FC_REPLAY)) && !handle) {
 			BUG_ON(nblocks <= 0);
-			handle = __ext4_journal_start_sb(NULL, dir->i_sb,
+			handle = __ecfs_journal_start_sb(NULL, dir->i_sb,
 				 line_no, handle_type, nblocks, 0,
-				 ext4_trans_default_revoke_credits(sb));
+				 ecfs_trans_default_revoke_credits(sb));
 			if (IS_ERR(handle)) {
 				err = PTR_ERR(handle);
-				ext4_std_error(sb, err);
+				ecfs_std_error(sb, err);
 				goto out;
 			}
 		}
 		BUFFER_TRACE(inode_bitmap_bh, "get_write_access");
-		err = ext4_journal_get_write_access(handle, sb, inode_bitmap_bh,
-						    EXT4_JTR_NONE);
+		err = ecfs_journal_get_write_access(handle, sb, inode_bitmap_bh,
+						    ECFS_JTR_NONE);
 		if (err) {
-			ext4_std_error(sb, err);
+			ecfs_std_error(sb, err);
 			goto out;
 		}
-		ext4_lock_group(sb, group);
-		ret2 = ext4_test_and_set_bit(ino, inode_bitmap_bh->b_data);
+		ecfs_lock_group(sb, group);
+		ret2 = ecfs_test_and_set_bit(ino, inode_bitmap_bh->b_data);
 		if (ret2) {
 			/* Someone already took the bit. Repeat the search
 			 * with lock held.
 			 */
 			ret2 = find_inode_bit(sb, group, inode_bitmap_bh, &ino);
 			if (ret2) {
-				ext4_set_bit(ino, inode_bitmap_bh->b_data);
+				ecfs_set_bit(ino, inode_bitmap_bh->b_data);
 				ret2 = 0;
 			} else {
 				ret2 = 1; /* we didn't grab the inode */
 			}
 		}
-		ext4_unlock_group(sb, group);
+		ecfs_unlock_group(sb, group);
 		ino++;		/* the inode bitmap is zero-based */
 		if (!ret2)
 			goto got; /* we grabbed the inode! */
@@ -1121,69 +1121,69 @@ next_group:
 	goto out;
 
 got:
-	BUFFER_TRACE(inode_bitmap_bh, "call ext4_handle_dirty_metadata");
-	err = ext4_handle_dirty_metadata(handle, NULL, inode_bitmap_bh);
+	BUFFER_TRACE(inode_bitmap_bh, "call ecfs_handle_dirty_metadata");
+	err = ecfs_handle_dirty_metadata(handle, NULL, inode_bitmap_bh);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto out;
 	}
 
 	BUFFER_TRACE(group_desc_bh, "get_write_access");
-	err = ext4_journal_get_write_access(handle, sb, group_desc_bh,
-					    EXT4_JTR_NONE);
+	err = ecfs_journal_get_write_access(handle, sb, group_desc_bh,
+					    ECFS_JTR_NONE);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto out;
 	}
 
 	/* We may have to initialize the block bitmap if it isn't already */
-	if (ext4_has_group_desc_csum(sb) &&
-	    gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT)) {
+	if (ecfs_has_group_desc_csum(sb) &&
+	    gdp->bg_flags & cpu_to_le16(ECFS_BG_BLOCK_UNINIT)) {
 		struct buffer_head *block_bitmap_bh;
 
-		block_bitmap_bh = ext4_read_block_bitmap(sb, group);
+		block_bitmap_bh = ecfs_read_block_bitmap(sb, group);
 		if (IS_ERR(block_bitmap_bh)) {
 			err = PTR_ERR(block_bitmap_bh);
 			goto out;
 		}
 		BUFFER_TRACE(block_bitmap_bh, "get block bitmap access");
-		err = ext4_journal_get_write_access(handle, sb, block_bitmap_bh,
-						    EXT4_JTR_NONE);
+		err = ecfs_journal_get_write_access(handle, sb, block_bitmap_bh,
+						    ECFS_JTR_NONE);
 		if (err) {
 			brelse(block_bitmap_bh);
-			ext4_std_error(sb, err);
+			ecfs_std_error(sb, err);
 			goto out;
 		}
 
 		BUFFER_TRACE(block_bitmap_bh, "dirty block bitmap");
-		err = ext4_handle_dirty_metadata(handle, NULL, block_bitmap_bh);
+		err = ecfs_handle_dirty_metadata(handle, NULL, block_bitmap_bh);
 
 		/* recheck and clear flag under lock if we still need to */
-		ext4_lock_group(sb, group);
-		if (ext4_has_group_desc_csum(sb) &&
-		    (gdp->bg_flags & cpu_to_le16(EXT4_BG_BLOCK_UNINIT))) {
-			gdp->bg_flags &= cpu_to_le16(~EXT4_BG_BLOCK_UNINIT);
-			ext4_free_group_clusters_set(sb, gdp,
-				ext4_free_clusters_after_init(sb, group, gdp));
-			ext4_block_bitmap_csum_set(sb, gdp, block_bitmap_bh);
-			ext4_group_desc_csum_set(sb, group, gdp);
+		ecfs_lock_group(sb, group);
+		if (ecfs_has_group_desc_csum(sb) &&
+		    (gdp->bg_flags & cpu_to_le16(ECFS_BG_BLOCK_UNINIT))) {
+			gdp->bg_flags &= cpu_to_le16(~ECFS_BG_BLOCK_UNINIT);
+			ecfs_free_group_clusters_set(sb, gdp,
+				ecfs_free_clusters_after_init(sb, group, gdp));
+			ecfs_block_bitmap_csum_set(sb, gdp, block_bitmap_bh);
+			ecfs_group_desc_csum_set(sb, group, gdp);
 		}
-		ext4_unlock_group(sb, group);
+		ecfs_unlock_group(sb, group);
 		brelse(block_bitmap_bh);
 
 		if (err) {
-			ext4_std_error(sb, err);
+			ecfs_std_error(sb, err);
 			goto out;
 		}
 	}
 
 	/* Update the relevant bg descriptor fields */
-	if (ext4_has_group_desc_csum(sb)) {
+	if (ecfs_has_group_desc_csum(sb)) {
 		int free;
-		struct ext4_group_info *grp = NULL;
+		struct ecfs_group_info *grp = NULL;
 
-		if (!(sbi->s_mount_state & EXT4_FC_REPLAY)) {
-			grp = ext4_get_group_info(sb, group);
+		if (!(sbi->s_mount_state & ECFS_FC_REPLAY)) {
+			grp = ecfs_get_group_info(sb, group);
 			if (!grp) {
 				err = -EFSCORRUPTED;
 				goto out;
@@ -1193,11 +1193,11 @@ got:
 						     * lazyinit
 						     */
 		}
-		ext4_lock_group(sb, group); /* while we modify the bg desc */
-		free = EXT4_INODES_PER_GROUP(sb) -
-			ext4_itable_unused_count(sb, gdp);
-		if (gdp->bg_flags & cpu_to_le16(EXT4_BG_INODE_UNINIT)) {
-			gdp->bg_flags &= cpu_to_le16(~EXT4_BG_INODE_UNINIT);
+		ecfs_lock_group(sb, group); /* while we modify the bg desc */
+		free = ECFS_INODES_PER_GROUP(sb) -
+			ecfs_itable_unused_count(sb, gdp);
+		if (gdp->bg_flags & cpu_to_le16(ECFS_BG_INODE_UNINIT)) {
+			gdp->bg_flags &= cpu_to_le16(~ECFS_BG_INODE_UNINIT);
 			free = 0;
 		}
 		/*
@@ -1206,34 +1206,34 @@ got:
 		 * we need to update the bg_itable_unused count
 		 */
 		if (ino > free)
-			ext4_itable_unused_set(sb, gdp,
-					(EXT4_INODES_PER_GROUP(sb) - ino));
-		if (!(sbi->s_mount_state & EXT4_FC_REPLAY))
+			ecfs_itable_unused_set(sb, gdp,
+					(ECFS_INODES_PER_GROUP(sb) - ino));
+		if (!(sbi->s_mount_state & ECFS_FC_REPLAY))
 			up_read(&grp->alloc_sem);
 	} else {
-		ext4_lock_group(sb, group);
+		ecfs_lock_group(sb, group);
 	}
 
-	ext4_free_inodes_set(sb, gdp, ext4_free_inodes_count(sb, gdp) - 1);
+	ecfs_free_inodes_set(sb, gdp, ecfs_free_inodes_count(sb, gdp) - 1);
 	if (S_ISDIR(mode)) {
-		ext4_used_dirs_set(sb, gdp, ext4_used_dirs_count(sb, gdp) + 1);
+		ecfs_used_dirs_set(sb, gdp, ecfs_used_dirs_count(sb, gdp) + 1);
 		if (sbi->s_log_groups_per_flex) {
-			ext4_group_t f = ext4_flex_group(sbi, group);
+			ecfs_group_t f = ecfs_flex_group(sbi, group);
 
 			atomic_inc(&sbi_array_rcu_deref(sbi, s_flex_groups,
 							f)->used_dirs);
 		}
 	}
-	if (ext4_has_group_desc_csum(sb)) {
-		ext4_inode_bitmap_csum_set(sb, gdp, inode_bitmap_bh);
-		ext4_group_desc_csum_set(sb, group, gdp);
+	if (ecfs_has_group_desc_csum(sb)) {
+		ecfs_inode_bitmap_csum_set(sb, gdp, inode_bitmap_bh);
+		ecfs_group_desc_csum_set(sb, group, gdp);
 	}
-	ext4_unlock_group(sb, group);
+	ecfs_unlock_group(sb, group);
 
-	BUFFER_TRACE(group_desc_bh, "call ext4_handle_dirty_metadata");
-	err = ext4_handle_dirty_metadata(handle, NULL, group_desc_bh);
+	BUFFER_TRACE(group_desc_bh, "call ecfs_handle_dirty_metadata");
+	err = ecfs_handle_dirty_metadata(handle, NULL, group_desc_bh);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto out;
 	}
 
@@ -1242,12 +1242,12 @@ got:
 		percpu_counter_inc(&sbi->s_dirs_counter);
 
 	if (sbi->s_log_groups_per_flex) {
-		flex_group = ext4_flex_group(sbi, group);
+		flex_group = ecfs_flex_group(sbi, group);
 		atomic_dec(&sbi_array_rcu_deref(sbi, s_flex_groups,
 						flex_group)->free_inodes);
 	}
 
-	inode->i_ino = ino + group * EXT4_INODES_PER_GROUP(sb);
+	inode->i_ino = ino + group * ECFS_INODES_PER_GROUP(sb);
 	/* This is the optimal IO size (for stat), not the fs block size */
 	inode->i_blocks = 0;
 	simple_inode_init_ts(inode);
@@ -1259,48 +1259,48 @@ got:
 
 	/* Don't inherit extent flag from directory, amongst others. */
 	ei->i_flags =
-		ext4_mask_flags(mode, EXT4_I(dir)->i_flags & EXT4_FL_INHERITED);
+		ecfs_mask_flags(mode, ECFS_I(dir)->i_flags & ECFS_FL_INHERITED);
 	ei->i_flags |= i_flags;
 	ei->i_file_acl = 0;
 	ei->i_dtime = 0;
 	ei->i_block_group = group;
 	ei->i_last_alloc_group = ~0;
 
-	ext4_set_inode_flags(inode, true);
+	ecfs_set_inode_flags(inode, true);
 	if (IS_DIRSYNC(inode))
-		ext4_handle_sync(handle);
+		ecfs_handle_sync(handle);
 	if (insert_inode_locked(inode) < 0) {
 		/*
 		 * Likely a bitmap corruption causing inode to be allocated
 		 * twice.
 		 */
 		err = -EIO;
-		ext4_error(sb, "failed to insert inode %lu: doubly allocated?",
+		ecfs_error(sb, "failed to insert inode %lu: doubly allocated?",
 			   inode->i_ino);
-		ext4_mark_group_bitmap_corrupted(sb, group,
-					EXT4_GROUP_INFO_IBITMAP_CORRUPT);
+		ecfs_mark_group_bitmap_corrupted(sb, group,
+					ECFS_GROUP_INFO_IBITMAP_CORRUPT);
 		goto out;
 	}
 	inode->i_generation = get_random_u32();
 
 	/* Precompute checksum seed for inode metadata */
-	if (ext4_has_feature_metadata_csum(sb)) {
+	if (ecfs_has_feature_metadata_csum(sb)) {
 		__u32 csum;
 		__le32 inum = cpu_to_le32(inode->i_ino);
 		__le32 gen = cpu_to_le32(inode->i_generation);
-		csum = ext4_chksum(sbi->s_csum_seed, (__u8 *)&inum,
+		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));
-		ei->i_csum_seed = ext4_chksum(csum, (__u8 *)&gen, sizeof(gen));
+		ei->i_csum_seed = ecfs_chksum(csum, (__u8 *)&gen, sizeof(gen));
 	}
 
-	ext4_clear_state_flags(ei); /* Only relevant on 32-bit archs */
-	ext4_set_inode_state(inode, EXT4_STATE_NEW);
+	ecfs_clear_state_flags(ei); /* Only relevant on 32-bit archs */
+	ecfs_set_inode_state(inode, ECFS_STATE_NEW);
 
 	ei->i_extra_isize = sbi->s_want_extra_isize;
 	ei->i_inline_off = 0;
-	if (ext4_has_feature_inline_data(sb) &&
-	    (!(ei->i_flags & (EXT4_DAX_FL|EXT4_EA_INODE_FL)) || S_ISDIR(mode)))
-		ext4_set_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA);
+	if (ecfs_has_feature_inline_data(sb) &&
+	    (!(ei->i_flags & (ECFS_DAX_FL|ECFS_EA_INODE_FL)) || S_ISDIR(mode)))
+		ecfs_set_inode_state(inode, ECFS_STATE_MAY_INLINE_DATA);
 	ret = inode;
 	err = dquot_alloc_inode(inode);
 	if (err)
@@ -1317,36 +1317,36 @@ got:
 			goto fail_free_drop;
 	}
 
-	if (!(ei->i_flags & EXT4_EA_INODE_FL)) {
-		err = ext4_init_acl(handle, inode, dir);
+	if (!(ei->i_flags & ECFS_EA_INODE_FL)) {
+		err = ecfs_init_acl(handle, inode, dir);
 		if (err)
 			goto fail_free_drop;
 
-		err = ext4_init_security(handle, inode, dir, qstr);
+		err = ecfs_init_security(handle, inode, dir, qstr);
 		if (err)
 			goto fail_free_drop;
 	}
 
-	if (ext4_has_feature_extents(sb)) {
+	if (ecfs_has_feature_extents(sb)) {
 		/* set extent flag only for directory, file and normal symlink*/
 		if (S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode)) {
-			ext4_set_inode_flag(inode, EXT4_INODE_EXTENTS);
-			ext4_ext_tree_init(handle, inode);
+			ecfs_set_inode_flag(inode, ECFS_INODE_EXTENTS);
+			ecfs_ext_tree_init(handle, inode);
 		}
 	}
 
-	ext4_set_inode_mapping_order(inode);
+	ecfs_set_inode_mapping_order(inode);
 
-	ext4_update_inode_fsync_trans(handle, inode, 1);
+	ecfs_update_inode_fsync_trans(handle, inode, 1);
 
-	err = ext4_mark_inode_dirty(handle, inode);
+	err = ecfs_mark_inode_dirty(handle, inode);
 	if (err) {
-		ext4_std_error(sb, err);
+		ecfs_std_error(sb, err);
 		goto fail_free_drop;
 	}
 
-	ext4_debug("allocating inode %lu\n", inode->i_ino);
-	trace_ext4_allocate_inode(inode, dir, mode);
+	ecfs_debug("allocating inode %lu\n", inode->i_ino);
+	trace_ecfs_allocate_inode(inode, dir, mode);
 	brelse(inode_bitmap_bh);
 	return ret;
 
@@ -1364,21 +1364,21 @@ out:
 }
 
 /* Verify that we are loading a valid orphan from disk */
-struct inode *ext4_orphan_get(struct super_block *sb, unsigned long ino)
+struct inode *ecfs_orphan_get(struct super_block *sb, unsigned long ino)
 {
-	unsigned long max_ino = le32_to_cpu(EXT4_SB(sb)->s_es->s_inodes_count);
-	ext4_group_t block_group;
+	unsigned long max_ino = le32_to_cpu(ECFS_SB(sb)->s_es->s_inodes_count);
+	ecfs_group_t block_group;
 	int bit;
 	struct buffer_head *bitmap_bh = NULL;
 	struct inode *inode = NULL;
 	int err = -EFSCORRUPTED;
 
-	if (ino < EXT4_FIRST_INO(sb) || ino > max_ino)
+	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		goto bad_orphan;
 
-	block_group = (ino - 1) / EXT4_INODES_PER_GROUP(sb);
-	bit = (ino - 1) % EXT4_INODES_PER_GROUP(sb);
-	bitmap_bh = ext4_read_inode_bitmap(sb, block_group);
+	block_group = (ino - 1) / ECFS_INODES_PER_GROUP(sb);
+	bit = (ino - 1) % ECFS_INODES_PER_GROUP(sb);
+	bitmap_bh = ecfs_read_inode_bitmap(sb, block_group);
 	if (IS_ERR(bitmap_bh))
 		return ERR_CAST(bitmap_bh);
 
@@ -1386,13 +1386,13 @@ struct inode *ext4_orphan_get(struct super_block *sb, unsigned long ino)
 	 * is a valid orphan (no e2fsck run on fs).  Orphans also include
 	 * inodes that were being truncated, so we can't check i_nlink==0.
 	 */
-	if (!ext4_test_bit(bit, bitmap_bh->b_data))
+	if (!ecfs_test_bit(bit, bitmap_bh->b_data))
 		goto bad_orphan;
 
-	inode = ext4_iget(sb, ino, EXT4_IGET_NORMAL);
+	inode = ecfs_iget(sb, ino, ECFS_IGET_NORMAL);
 	if (IS_ERR(inode)) {
 		err = PTR_ERR(inode);
-		ext4_error_err(sb, -err,
+		ecfs_error_err(sb, -err,
 			       "couldn't read orphan inode %lu (err %d)",
 			       ino, err);
 		brelse(bitmap_bh);
@@ -1405,7 +1405,7 @@ struct inode *ext4_orphan_get(struct super_block *sb, unsigned long ino)
 	 * list during processing and an infinite loop will result.
 	 * Similarly, it must not be a bad inode.
 	 */
-	if ((inode->i_nlink && !ext4_can_truncate(inode)) ||
+	if ((inode->i_nlink && !ecfs_can_truncate(inode)) ||
 	    is_bad_inode(inode))
 		goto bad_orphan;
 
@@ -1415,11 +1415,11 @@ struct inode *ext4_orphan_get(struct super_block *sb, unsigned long ino)
 	return inode;
 
 bad_orphan:
-	ext4_error(sb, "bad orphan inode %lu", ino);
+	ecfs_error(sb, "bad orphan inode %lu", ino);
 	if (bitmap_bh)
-		printk(KERN_ERR "ext4_test_bit(bit=%d, block=%llu) = %d\n",
+		printk(KERN_ERR "ecfs_test_bit(bit=%d, block=%llu) = %d\n",
 		       bit, (unsigned long long)bitmap_bh->b_blocknr,
-		       ext4_test_bit(bit, bitmap_bh->b_data));
+		       ecfs_test_bit(bit, bitmap_bh->b_data));
 	if (inode) {
 		printk(KERN_ERR "is_bad_inode(inode)=%d\n",
 		       is_bad_inode(inode));
@@ -1436,50 +1436,50 @@ bad_orphan:
 	return ERR_PTR(err);
 }
 
-unsigned long ext4_count_free_inodes(struct super_block *sb)
+unsigned long ecfs_count_free_inodes(struct super_block *sb)
 {
 	unsigned long desc_count;
-	struct ext4_group_desc *gdp;
-	ext4_group_t i, ngroups = ext4_get_groups_count(sb);
-#ifdef EXT4FS_DEBUG
-	struct ext4_super_block *es;
+	struct ecfs_group_desc *gdp;
+	ecfs_group_t i, ngroups = ecfs_get_groups_count(sb);
+#ifdef ECFSFS_DEBUG
+	struct ecfs_super_block *es;
 	unsigned long bitmap_count, x;
 	struct buffer_head *bitmap_bh = NULL;
 
-	es = EXT4_SB(sb)->s_es;
+	es = ECFS_SB(sb)->s_es;
 	desc_count = 0;
 	bitmap_count = 0;
 	gdp = NULL;
 	for (i = 0; i < ngroups; i++) {
-		gdp = ext4_get_group_desc(sb, i, NULL);
+		gdp = ecfs_get_group_desc(sb, i, NULL);
 		if (!gdp)
 			continue;
-		desc_count += ext4_free_inodes_count(sb, gdp);
+		desc_count += ecfs_free_inodes_count(sb, gdp);
 		brelse(bitmap_bh);
-		bitmap_bh = ext4_read_inode_bitmap(sb, i);
+		bitmap_bh = ecfs_read_inode_bitmap(sb, i);
 		if (IS_ERR(bitmap_bh)) {
 			bitmap_bh = NULL;
 			continue;
 		}
 
-		x = ext4_count_free(bitmap_bh->b_data,
-				    EXT4_INODES_PER_GROUP(sb) / 8);
+		x = ecfs_count_free(bitmap_bh->b_data,
+				    ECFS_INODES_PER_GROUP(sb) / 8);
 		printk(KERN_DEBUG "group %lu: stored = %d, counted = %lu\n",
-			(unsigned long) i, ext4_free_inodes_count(sb, gdp), x);
+			(unsigned long) i, ecfs_free_inodes_count(sb, gdp), x);
 		bitmap_count += x;
 	}
 	brelse(bitmap_bh);
-	printk(KERN_DEBUG "ext4_count_free_inodes: "
+	printk(KERN_DEBUG "ecfs_count_free_inodes: "
 	       "stored = %u, computed = %lu, %lu\n",
 	       le32_to_cpu(es->s_free_inodes_count), desc_count, bitmap_count);
 	return desc_count;
 #else
 	desc_count = 0;
 	for (i = 0; i < ngroups; i++) {
-		gdp = ext4_get_group_desc(sb, i, NULL);
+		gdp = ecfs_get_group_desc(sb, i, NULL);
 		if (!gdp)
 			continue;
-		desc_count += ext4_free_inodes_count(sb, gdp);
+		desc_count += ecfs_free_inodes_count(sb, gdp);
 		cond_resched();
 	}
 	return desc_count;
@@ -1487,16 +1487,16 @@ unsigned long ext4_count_free_inodes(struct super_block *sb)
 }
 
 /* Called at mount-time, super-block is locked */
-unsigned long ext4_count_dirs(struct super_block * sb)
+unsigned long ecfs_count_dirs(struct super_block * sb)
 {
 	unsigned long count = 0;
-	ext4_group_t i, ngroups = ext4_get_groups_count(sb);
+	ecfs_group_t i, ngroups = ecfs_get_groups_count(sb);
 
 	for (i = 0; i < ngroups; i++) {
-		struct ext4_group_desc *gdp = ext4_get_group_desc(sb, i, NULL);
+		struct ecfs_group_desc *gdp = ecfs_get_group_desc(sb, i, NULL);
 		if (!gdp)
 			continue;
-		count += ext4_used_dirs_count(sb, gdp);
+		count += ecfs_used_dirs_count(sb, gdp);
 	}
 	return count;
 }
@@ -1504,24 +1504,24 @@ unsigned long ext4_count_dirs(struct super_block * sb)
 /*
  * Zeroes not yet zeroed inode table - just write zeroes through the whole
  * inode table. Must be called without any spinlock held. The only place
- * where it is called from on active part of filesystem is ext4lazyinit
+ * where it is called from on active part of filesystem is ecfslazyinit
  * thread, so we do not need any special locks, however we have to prevent
  * inode allocation from the current group, so we take alloc_sem lock, to
- * block ext4_new_inode() until we are finished.
+ * block ecfs_new_inode() until we are finished.
  */
-int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
+int ecfs_init_inode_table(struct super_block *sb, ecfs_group_t group,
 				 int barrier)
 {
-	struct ext4_group_info *grp = ext4_get_group_info(sb, group);
-	struct ext4_sb_info *sbi = EXT4_SB(sb);
-	struct ext4_group_desc *gdp = NULL;
+	struct ecfs_group_info *grp = ecfs_get_group_info(sb, group);
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+	struct ecfs_group_desc *gdp = NULL;
 	struct buffer_head *group_desc_bh;
 	handle_t *handle;
-	ext4_fsblk_t blk;
+	ecfs_fsblk_t blk;
 	int num, ret = 0, used_blks = 0;
 	unsigned long used_inos = 0;
 
-	gdp = ext4_get_group_desc(sb, group, &group_desc_bh);
+	gdp = ecfs_get_group_desc(sb, group, &group_desc_bh);
 	if (!gdp || !grp)
 		goto out;
 
@@ -1529,10 +1529,10 @@ int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
 	 * We do not need to lock this, because we are the only one
 	 * handling this flag.
 	 */
-	if (gdp->bg_flags & cpu_to_le16(EXT4_BG_INODE_ZEROED))
+	if (gdp->bg_flags & cpu_to_le16(ECFS_BG_INODE_ZEROED))
 		goto out;
 
-	handle = ext4_journal_start_sb(sb, EXT4_HT_MISC, 1);
+	handle = ecfs_journal_start_sb(sb, ECFS_HT_MISC, 1);
 	if (IS_ERR(handle)) {
 		ret = PTR_ERR(handle);
 		goto out;
@@ -1544,45 +1544,45 @@ int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
 	 * used inodes so we need to skip blocks with used inodes in
 	 * inode table.
 	 */
-	if (!(gdp->bg_flags & cpu_to_le16(EXT4_BG_INODE_UNINIT))) {
-		used_inos = EXT4_INODES_PER_GROUP(sb) -
-			    ext4_itable_unused_count(sb, gdp);
+	if (!(gdp->bg_flags & cpu_to_le16(ECFS_BG_INODE_UNINIT))) {
+		used_inos = ECFS_INODES_PER_GROUP(sb) -
+			    ecfs_itable_unused_count(sb, gdp);
 		used_blks = DIV_ROUND_UP(used_inos, sbi->s_inodes_per_block);
 
 		/* Bogus inode unused count? */
 		if (used_blks < 0 || used_blks > sbi->s_itb_per_group) {
-			ext4_error(sb, "Something is wrong with group %u: "
+			ecfs_error(sb, "Something is wrong with group %u: "
 				   "used itable blocks: %d; "
 				   "itable unused count: %u",
 				   group, used_blks,
-				   ext4_itable_unused_count(sb, gdp));
+				   ecfs_itable_unused_count(sb, gdp));
 			ret = 1;
 			goto err_out;
 		}
 
-		used_inos += group * EXT4_INODES_PER_GROUP(sb);
+		used_inos += group * ECFS_INODES_PER_GROUP(sb);
 		/*
 		 * Are there some uninitialized inodes in the inode table
 		 * before the first normal inode?
 		 */
 		if ((used_blks != sbi->s_itb_per_group) &&
-		     (used_inos < EXT4_FIRST_INO(sb))) {
-			ext4_error(sb, "Something is wrong with group %u: "
+		     (used_inos < ECFS_FIRST_INO(sb))) {
+			ecfs_error(sb, "Something is wrong with group %u: "
 				   "itable unused count: %u; "
 				   "itables initialized count: %ld",
-				   group, ext4_itable_unused_count(sb, gdp),
+				   group, ecfs_itable_unused_count(sb, gdp),
 				   used_inos);
 			ret = 1;
 			goto err_out;
 		}
 	}
 
-	blk = ext4_inode_table(sb, gdp) + used_blks;
+	blk = ecfs_inode_table(sb, gdp) + used_blks;
 	num = sbi->s_itb_per_group - used_blks;
 
 	BUFFER_TRACE(group_desc_bh, "get_write_access");
-	ret = ext4_journal_get_write_access(handle, sb, group_desc_bh,
-					    EXT4_JTR_NONE);
+	ret = ecfs_journal_get_write_access(handle, sb, group_desc_bh,
+					    ECFS_JTR_NONE);
 	if (ret)
 		goto err_out;
 
@@ -1594,7 +1594,7 @@ int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
 	if (unlikely(num == 0))
 		goto skip_zeroout;
 
-	ext4_debug("going to zero out inode table in group %d\n",
+	ecfs_debug("going to zero out inode table in group %d\n",
 		   group);
 	ret = sb_issue_zeroout(sb, blk, num, GFP_NOFS);
 	if (ret < 0)
@@ -1603,19 +1603,19 @@ int ext4_init_inode_table(struct super_block *sb, ext4_group_t group,
 		blkdev_issue_flush(sb->s_bdev);
 
 skip_zeroout:
-	ext4_lock_group(sb, group);
-	gdp->bg_flags |= cpu_to_le16(EXT4_BG_INODE_ZEROED);
-	ext4_group_desc_csum_set(sb, group, gdp);
-	ext4_unlock_group(sb, group);
+	ecfs_lock_group(sb, group);
+	gdp->bg_flags |= cpu_to_le16(ECFS_BG_INODE_ZEROED);
+	ecfs_group_desc_csum_set(sb, group, gdp);
+	ecfs_unlock_group(sb, group);
 
 	BUFFER_TRACE(group_desc_bh,
-		     "call ext4_handle_dirty_metadata");
-	ret = ext4_handle_dirty_metadata(handle, NULL,
+		     "call ecfs_handle_dirty_metadata");
+	ret = ecfs_handle_dirty_metadata(handle, NULL,
 					 group_desc_bh);
 
 err_out:
 	up_write(&grp->alloc_sem);
-	ext4_journal_stop(handle);
+	ecfs_journal_stop(handle);
 out:
 	return ret;
 }

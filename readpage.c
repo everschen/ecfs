@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * linux/fs/ext4/readpage.c
+ * linux/fs/ecfs/readpage.c
  *
  * Copyright (C) 2002, Linus Torvalds.
  * Copyright (C) 2015, Google, Inc.
  *
  * This was originally taken from fs/mpage.c
  *
- * The ext4_mpage_readpages() function here is intended to
+ * The ecfs_mpage_readpages() function here is intended to
  * replace mpage_readahead() in the general case, not just for
  * encrypted files.  It has some limitations (see below), where it
  * will fall back to read_block_full_page(), but these limitations
  * should only be hit when page_size != block_size.
  *
- * This will allow us to attach a callback function to support ext4
+ * This will allow us to attach a callback function to support ecfs
  * encryption.
  *
  * If anything unusual happens, such as:
@@ -44,7 +44,7 @@
 #include <linux/backing-dev.h>
 #include <linux/pagevec.h>
 
-#include "ext4.h"
+#include "ecfs.h"
 
 #define NUM_PREALLOC_POST_READ_CTXS	128
 
@@ -171,13 +171,13 @@ static void mpage_end_io(struct bio *bio)
 	__read_end_io(bio);
 }
 
-static inline bool ext4_need_verity(const struct inode *inode, pgoff_t idx)
+static inline bool ecfs_need_verity(const struct inode *inode, pgoff_t idx)
 {
 	return fsverity_active(inode) &&
 	       idx < DIV_ROUND_UP(inode->i_size, PAGE_SIZE);
 }
 
-static void ext4_set_bio_post_read_ctx(struct bio *bio,
+static void ecfs_set_bio_post_read_ctx(struct bio *bio,
 				       const struct inode *inode,
 				       pgoff_t first_idx)
 {
@@ -186,7 +186,7 @@ static void ext4_set_bio_post_read_ctx(struct bio *bio,
 	if (fscrypt_inode_uses_fs_layer_crypto(inode))
 		post_read_steps |= 1 << STEP_DECRYPT;
 
-	if (ext4_need_verity(inode, first_idx))
+	if (ecfs_need_verity(inode, first_idx))
 		post_read_steps |= 1 << STEP_VERITY;
 
 	if (post_read_steps) {
@@ -200,7 +200,7 @@ static void ext4_set_bio_post_read_ctx(struct bio *bio,
 	}
 }
 
-static inline loff_t ext4_readpage_limit(struct inode *inode)
+static inline loff_t ecfs_readpage_limit(struct inode *inode)
 {
 	if (IS_ENABLED(CONFIG_FS_VERITY) && IS_VERITY(inode))
 		return inode->i_sb->s_maxbytes;
@@ -208,7 +208,7 @@ static inline loff_t ext4_readpage_limit(struct inode *inode)
 	return i_size_read(inode);
 }
 
-int ext4_mpage_readpages(struct inode *inode,
+int ecfs_mpage_readpages(struct inode *inode,
 		struct readahead_control *rac, struct folio *folio)
 {
 	struct bio *bio = NULL;
@@ -226,7 +226,7 @@ int ext4_mpage_readpages(struct inode *inode,
 	struct block_device *bdev = inode->i_sb->s_bdev;
 	int length;
 	unsigned relative_block = 0;
-	struct ext4_map_blocks map;
+	struct ecfs_map_blocks map;
 	unsigned int nr_pages, folio_pages;
 
 	map.m_pblk = 0;
@@ -254,7 +254,7 @@ int ext4_mpage_readpages(struct inode *inode,
 		block_in_file = next_block =
 			(sector_t)folio->index << (PAGE_SHIFT - blkbits);
 		last_block = block_in_file + nr_pages * blocks_per_page;
-		last_block_in_file = (ext4_readpage_limit(inode) +
+		last_block_in_file = (ecfs_readpage_limit(inode) +
 				      blocksize - 1) >> blkbits;
 		if (last_block > last_block_in_file)
 			last_block = last_block_in_file;
@@ -263,7 +263,7 @@ int ext4_mpage_readpages(struct inode *inode,
 		/*
 		 * Map blocks using the previous result first.
 		 */
-		if ((map.m_flags & EXT4_MAP_MAPPED) &&
+		if ((map.m_flags & ECFS_MAP_MAPPED) &&
 		    block_in_file > map.m_lblk &&
 		    block_in_file < (map.m_lblk + map.m_len)) {
 			unsigned map_offset = block_in_file - map.m_lblk;
@@ -273,7 +273,7 @@ int ext4_mpage_readpages(struct inode *inode,
 			for (relative_block = 0; ; relative_block++) {
 				if (relative_block == last) {
 					/* needed? */
-					map.m_flags &= ~EXT4_MAP_MAPPED;
+					map.m_flags &= ~ECFS_MAP_MAPPED;
 					break;
 				}
 				if (page_block == blocks_per_folio)
@@ -284,7 +284,7 @@ int ext4_mpage_readpages(struct inode *inode,
 		}
 
 		/*
-		 * Then do more ext4_map_blocks() calls until we are
+		 * Then do more ecfs_map_blocks() calls until we are
 		 * done with this folio.
 		 */
 		while (page_block < blocks_per_folio) {
@@ -292,7 +292,7 @@ int ext4_mpage_readpages(struct inode *inode,
 				map.m_lblk = block_in_file;
 				map.m_len = last_block - block_in_file;
 
-				if (ext4_map_blocks(NULL, inode, &map, 0) < 0) {
+				if (ecfs_map_blocks(NULL, inode, &map, 0) < 0) {
 				set_error_page:
 					folio_zero_segment(folio, 0,
 							  folio_size(folio));
@@ -300,7 +300,7 @@ int ext4_mpage_readpages(struct inode *inode,
 					goto next_page;
 				}
 			}
-			if ((map.m_flags & EXT4_MAP_MAPPED) == 0) {
+			if ((map.m_flags & ECFS_MAP_MAPPED) == 0) {
 				fully_mapped = 0;
 				if (first_hole == blocks_per_folio)
 					first_hole = page_block;
@@ -319,7 +319,7 @@ int ext4_mpage_readpages(struct inode *inode,
 			for (relative_block = 0; ; relative_block++) {
 				if (relative_block == map.m_len) {
 					/* needed? */
-					map.m_flags &= ~EXT4_MAP_MAPPED;
+					map.m_flags &= ~ECFS_MAP_MAPPED;
 					break;
 				} else if (page_block == blocks_per_folio)
 					break;
@@ -331,7 +331,7 @@ int ext4_mpage_readpages(struct inode *inode,
 			folio_zero_segment(folio, first_hole << blkbits,
 					  folio_size(folio));
 			if (first_hole == 0) {
-				if (ext4_need_verity(inode, folio->index) &&
+				if (ecfs_need_verity(inode, folio->index) &&
 				    !fsverity_verify_folio(folio))
 					goto set_error_page;
 				folio_end_read(folio, true);
@@ -360,7 +360,7 @@ int ext4_mpage_readpages(struct inode *inode,
 					REQ_OP_READ, GFP_KERNEL);
 			fscrypt_set_bio_crypt_ctx(bio, inode, next_block,
 						  GFP_KERNEL);
-			ext4_set_bio_post_read_ctx(bio, inode, folio->index);
+			ecfs_set_bio_post_read_ctx(bio, inode, folio->index);
 			bio->bi_iter.bi_sector = first_block << (blkbits - 9);
 			bio->bi_end_io = mpage_end_io;
 			if (rac)
@@ -371,7 +371,7 @@ int ext4_mpage_readpages(struct inode *inode,
 		if (!bio_add_folio(bio, folio, length, 0))
 			goto submit_and_realloc;
 
-		if (((map.m_flags & EXT4_MAP_BOUNDARY) &&
+		if (((map.m_flags & ECFS_MAP_BOUNDARY) &&
 		     (relative_block == map.m_len)) ||
 		    (first_hole != blocks_per_folio)) {
 			submit_bio(bio);
@@ -385,7 +385,7 @@ int ext4_mpage_readpages(struct inode *inode,
 			bio = NULL;
 		}
 		if (!folio_test_uptodate(folio))
-			block_read_full_folio(folio, ext4_get_block);
+			block_read_full_folio(folio, ecfs_get_block);
 		else
 			folio_unlock(folio);
 next_page:
@@ -396,7 +396,7 @@ next_page:
 	return 0;
 }
 
-int __init ext4_init_post_read_processing(void)
+int __init ecfs_init_post_read_processing(void)
 {
 	bio_post_read_ctx_cache = KMEM_CACHE(bio_post_read_ctx, SLAB_RECLAIM_ACCOUNT);
 
@@ -415,7 +415,7 @@ fail:
 	return -ENOMEM;
 }
 
-void ext4_exit_post_read_processing(void)
+void ecfs_exit_post_read_processing(void)
 {
 	mempool_destroy(bio_post_read_ctx_pool);
 	kmem_cache_destroy(bio_post_read_ctx_cache);

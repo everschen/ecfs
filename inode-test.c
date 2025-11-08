@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * KUnit test of ext4 inode that verify the seconds part of [a/c/m]
- * timestamps in ext4 inode structs are decoded correctly.
+ * KUnit test of ecfs inode that verify the seconds part of [a/c/m]
+ * timestamps in ecfs inode structs are decoded correctly.
  */
 
 #include <kunit/test.h>
 #include <linux/kernel.h>
 #include <linux/time64.h>
 
-#include "ext4.h"
+#include "ecfs.h"
 
 /*
  * For constructing the nonnegative timestamp lower bound value.
@@ -217,7 +217,7 @@ static void timestamp_expectation_to_desc(const struct timestamp_expectation *t,
 	strscpy(desc, t->test_case_name, KUNIT_PARAM_DESC_SIZE);
 }
 
-KUNIT_ARRAY_PARAM(ext4_inode, test_data, timestamp_expectation_to_desc);
+KUNIT_ARRAY_PARAM(ecfs_inode, test_data, timestamp_expectation_to_desc);
 
 static time64_t get_32bit_time(const struct timestamp_expectation * const test)
 {
@@ -236,7 +236,7 @@ static time64_t get_32bit_time(const struct timestamp_expectation * const test)
 
 /*
  *  Test data is derived from the table in the Inode Timestamps section of
- *  Documentation/filesystems/ext4/inodes.rst.
+ *  Documentation/filesystems/ecfs/inodes.rst.
  */
 static void inode_test_xtimestamp_decoding(struct kunit *test)
 {
@@ -245,7 +245,7 @@ static void inode_test_xtimestamp_decoding(struct kunit *test)
 	struct timestamp_expectation *test_param =
 			(struct timestamp_expectation *)(test->param_value);
 
-	timestamp = ext4_decode_extra_time(
+	timestamp = ecfs_decode_extra_time(
 				cpu_to_le32(get_32bit_time(test_param)),
 				cpu_to_le32(test_param->extra_bits));
 
@@ -267,17 +267,17 @@ static void inode_test_xtimestamp_decoding(struct kunit *test)
 			    test_param->extra_bits);
 }
 
-static struct kunit_case ext4_inode_test_cases[] = {
-	KUNIT_CASE_PARAM(inode_test_xtimestamp_decoding, ext4_inode_gen_params),
+static struct kunit_case ecfs_inode_test_cases[] = {
+	KUNIT_CASE_PARAM(inode_test_xtimestamp_decoding, ecfs_inode_gen_params),
 	{}
 };
 
-static struct kunit_suite ext4_inode_test_suite = {
-	.name = "ext4_inode_test",
-	.test_cases = ext4_inode_test_cases,
+static struct kunit_suite ecfs_inode_test_suite = {
+	.name = "ecfs_inode_test",
+	.test_cases = ecfs_inode_test_cases,
 };
 
-kunit_test_suites(&ext4_inode_test_suite);
+kunit_test_suites(&ecfs_inode_test_suite);
 
-MODULE_DESCRIPTION("KUnit test of ext4 inode timestamp decoding");
+MODULE_DESCRIPTION("KUnit test of ecfs inode timestamp decoding");
 MODULE_LICENSE("GPL v2");

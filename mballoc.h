@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- *  fs/ext4/mballoc.h
+ *  fs/ecfs/mballoc.h
  *
  *  Written by: Alex Tomas <alex@clusterfs.com>
  *
  */
-#ifndef _EXT4_MBALLOC_H
-#define _EXT4_MBALLOC_H
+#ifndef _ECFS_MBALLOC_H
+#define _ECFS_MBALLOC_H
 
 #include <linux/time.h>
 #include <linux/fs.h>
@@ -20,23 +20,23 @@
 #include <linux/seq_file.h>
 #include <linux/blkdev.h>
 #include <linux/mutex.h>
-#include "ext4_jbd2.h"
-#include "ext4.h"
+#include "ecfs_jbd2.h"
+#include "ecfs.h"
 
 /*
  * mb_debug() dynamic printk msgs could be used to debug mballoc code.
  */
-#ifdef CONFIG_EXT4_DEBUG
+#ifdef CONFIG_ECFS_DEBUG
 #define mb_debug(sb, fmt, ...)						\
-	pr_debug("[%s/%d] EXT4-fs (%s): (%s, %d): %s: " fmt,		\
+	pr_debug("[%s/%d] ECFS-fs (%s): (%s, %d): %s: " fmt,		\
 		current->comm, task_pid_nr(current), sb->s_id,		\
 	       __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #else
 #define mb_debug(sb, fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
 #endif
 
-#define EXT4_MB_HISTORY_ALLOC		1	/* allocation */
-#define EXT4_MB_HISTORY_PREALLOC	2	/* preallocated blocks used */
+#define ECFS_MB_HISTORY_ALLOC		1	/* allocation */
+#define ECFS_MB_HISTORY_PREALLOC	2	/* preallocated blocks used */
 
 /*
  * How long mballoc can look for a best extent (in found extents)
@@ -59,7 +59,7 @@
  * by the stream allocator, which purpose is to pack requests
  * as close each to other as possible to produce smooth I/O traffic
  * We use locality group prealloc space for stream request.
- * We can tune the same via /proc/fs/ext4/<partition>/stream_req
+ * We can tune the same via /proc/fs/ecfs/<partition>/stream_req
  */
 #define MB_DEFAULT_STREAM_THRESHOLD	16	/* 64K */
 
@@ -97,7 +97,7 @@
  */
 #define MB_NUM_ORDERS(sb)		((sb)->s_blocksize_bits + 2)
 
-struct ext4_free_data {
+struct ecfs_free_data {
 	/* this links the free block information from sb_info */
 	struct list_head		efd_list;
 
@@ -105,17 +105,17 @@ struct ext4_free_data {
 	struct rb_node			efd_node;
 
 	/* group which free block extent belongs */
-	ext4_group_t			efd_group;
+	ecfs_group_t			efd_group;
 
 	/* free block extent */
-	ext4_grpblk_t			efd_start_cluster;
-	ext4_grpblk_t			efd_count;
+	ecfs_grpblk_t			efd_start_cluster;
+	ecfs_grpblk_t			efd_count;
 
 	/* transaction which freed this extent */
 	tid_t				efd_tid;
 };
 
-struct ext4_prealloc_space {
+struct ecfs_prealloc_space {
 	union {
 		struct rb_node	inode_node;		/* for inode PA rbtree */
 		struct list_head	lg_list;	/* for lg PAs */
@@ -128,10 +128,10 @@ struct ext4_prealloc_space {
 	spinlock_t		pa_lock;
 	atomic_t		pa_count;
 	unsigned		pa_deleted;
-	ext4_fsblk_t		pa_pstart;	/* phys. block */
-	ext4_lblk_t		pa_lstart;	/* log. block */
-	ext4_grpblk_t		pa_len;		/* len of preallocated chunk */
-	ext4_grpblk_t		pa_free;	/* how many blocks are free */
+	ecfs_fsblk_t		pa_pstart;	/* phys. block */
+	ecfs_lblk_t		pa_lstart;	/* log. block */
+	ecfs_grpblk_t		pa_len;		/* len of preallocated chunk */
+	ecfs_grpblk_t		pa_free;	/* how many blocks are free */
 	unsigned short		pa_type;	/* pa type. inode or group */
 	union {
 		rwlock_t		*inode_lock;	/* locks the rbtree holding this PA */
@@ -145,11 +145,11 @@ enum {
 	MB_GROUP_PA = 1
 };
 
-struct ext4_free_extent {
-	ext4_lblk_t fe_logical;
-	ext4_grpblk_t fe_start;	/* In cluster units */
-	ext4_group_t fe_group;
-	ext4_grpblk_t fe_len;	/* In cluster units */
+struct ecfs_free_extent {
+	ecfs_lblk_t fe_logical;
+	ecfs_grpblk_t fe_start;	/* In cluster units */
+	ecfs_group_t fe_group;
+	ecfs_grpblk_t fe_len;	/* In cluster units */
 };
 
 /*
@@ -161,7 +161,7 @@ struct ext4_free_extent {
  *   order value.ie, fls(pa_free)-1;
  */
 #define PREALLOC_TB_SIZE 10
-struct ext4_locality_group {
+struct ecfs_locality_group {
 	/* for allocator */
 	/* to serialize allocates */
 	struct mutex		lg_mutex;
@@ -170,29 +170,29 @@ struct ext4_locality_group {
 	spinlock_t		lg_prealloc_lock;
 };
 
-struct ext4_allocation_context {
+struct ecfs_allocation_context {
 	struct inode *ac_inode;
 	struct super_block *ac_sb;
 
 	/* original request */
-	struct ext4_free_extent ac_o_ex;
+	struct ecfs_free_extent ac_o_ex;
 
 	/* goal request (normalized ac_o_ex) */
-	struct ext4_free_extent ac_g_ex;
+	struct ecfs_free_extent ac_g_ex;
 
 	/* the best found extent */
-	struct ext4_free_extent ac_b_ex;
+	struct ecfs_free_extent ac_b_ex;
 
 	/* copy of the best found extent taken before preallocation efforts */
-	struct ext4_free_extent ac_f_ex;
+	struct ecfs_free_extent ac_f_ex;
 
 	/*
 	 * goal len can change in CR_BEST_AVAIL_LEN, so save the original len.
 	 * This is used while adjusting the PA window and for accounting.
 	 */
-	ext4_grpblk_t	ac_orig_goal_len;
+	ecfs_grpblk_t	ac_orig_goal_len;
 
-	ext4_group_t ac_prefetch_grp;
+	ecfs_group_t ac_prefetch_grp;
 	unsigned int ac_prefetch_ios;
 	unsigned int ac_prefetch_nr;
 
@@ -201,7 +201,7 @@ struct ext4_allocation_context {
 	__u32 ac_flags;		/* allocation hints */
 	__u16 ac_groups_scanned;
 	__u16 ac_found;
-	__u16 ac_cX_found[EXT4_MB_NUM_CRS];
+	__u16 ac_cX_found[ECFS_MB_NUM_CRS];
 	__u16 ac_tail;
 	__u16 ac_buddy;
 	__u8 ac_status;
@@ -210,64 +210,64 @@ struct ext4_allocation_context {
 				 * N > 0, the field stores N, otherwise 0 */
 	__u8 ac_op;		/* operation, for history only */
 
-	struct ext4_buddy *ac_e4b;
+	struct ecfs_buddy *ac_e4b;
 	struct folio *ac_bitmap_folio;
 	struct folio *ac_buddy_folio;
-	struct ext4_prealloc_space *ac_pa;
-	struct ext4_locality_group *ac_lg;
+	struct ecfs_prealloc_space *ac_pa;
+	struct ecfs_locality_group *ac_lg;
 };
 
 #define AC_STATUS_CONTINUE	1
 #define AC_STATUS_FOUND		2
 #define AC_STATUS_BREAK		3
 
-struct ext4_buddy {
+struct ecfs_buddy {
 	struct folio *bd_buddy_folio;
 	void *bd_buddy;
 	struct folio *bd_bitmap_folio;
 	void *bd_bitmap;
-	struct ext4_group_info *bd_info;
+	struct ecfs_group_info *bd_info;
 	struct super_block *bd_sb;
 	__u16 bd_blkbits;
-	ext4_group_t bd_group;
+	ecfs_group_t bd_group;
 };
 
-static inline ext4_fsblk_t ext4_grp_offs_to_block(struct super_block *sb,
-					struct ext4_free_extent *fex)
+static inline ecfs_fsblk_t ecfs_grp_offs_to_block(struct super_block *sb,
+					struct ecfs_free_extent *fex)
 {
-	return ext4_group_first_block_no(sb, fex->fe_group) +
-		(fex->fe_start << EXT4_SB(sb)->s_cluster_bits);
+	return ecfs_group_first_block_no(sb, fex->fe_group) +
+		(fex->fe_start << ECFS_SB(sb)->s_cluster_bits);
 }
 
-static inline loff_t extent_logical_end(struct ext4_sb_info *sbi,
-					struct ext4_free_extent *fex)
+static inline loff_t extent_logical_end(struct ecfs_sb_info *sbi,
+					struct ecfs_free_extent *fex)
 {
-	/* Use loff_t to avoid end exceeding ext4_lblk_t max. */
-	return (loff_t)fex->fe_logical + EXT4_C2B(sbi, fex->fe_len);
+	/* Use loff_t to avoid end exceeding ecfs_lblk_t max. */
+	return (loff_t)fex->fe_logical + ECFS_C2B(sbi, fex->fe_len);
 }
 
-static inline loff_t pa_logical_end(struct ext4_sb_info *sbi,
-				    struct ext4_prealloc_space *pa)
+static inline loff_t pa_logical_end(struct ecfs_sb_info *sbi,
+				    struct ecfs_prealloc_space *pa)
 {
-	/* Use loff_t to avoid end exceeding ext4_lblk_t max. */
-	return (loff_t)pa->pa_lstart + EXT4_C2B(sbi, pa->pa_len);
+	/* Use loff_t to avoid end exceeding ecfs_lblk_t max. */
+	return (loff_t)pa->pa_lstart + ECFS_C2B(sbi, pa->pa_len);
 }
 
-typedef int (*ext4_mballoc_query_range_fn)(
+typedef int (*ecfs_mballoc_query_range_fn)(
 	struct super_block		*sb,
-	ext4_group_t			agno,
-	ext4_grpblk_t			start,
-	ext4_grpblk_t			len,
+	ecfs_group_t			agno,
+	ecfs_grpblk_t			start,
+	ecfs_grpblk_t			len,
 	void				*priv);
 
 int
-ext4_mballoc_query_range(
+ecfs_mballoc_query_range(
 	struct super_block		*sb,
-	ext4_group_t			agno,
-	ext4_grpblk_t			start,
-	ext4_grpblk_t			end,
-	ext4_mballoc_query_range_fn	meta_formatter,
-	ext4_mballoc_query_range_fn	formatter,
+	ecfs_group_t			agno,
+	ecfs_grpblk_t			start,
+	ecfs_grpblk_t			end,
+	ecfs_mballoc_query_range_fn	meta_formatter,
+	ecfs_mballoc_query_range_fn	formatter,
 	void				*priv);
 
 #endif
