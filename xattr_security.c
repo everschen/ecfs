@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * linux/fs/ext4/xattr_security.c
+ * linux/fs/ecfs/xattr_security.c
  * Handler for storing security labels as extended attributes.
  */
 
@@ -8,32 +8,32 @@
 #include <linux/fs.h>
 #include <linux/security.h>
 #include <linux/slab.h>
-#include "ext4_jbd2.h"
-#include "ext4.h"
+#include "ecfs_jbd2.h"
+#include "ecfs.h"
 #include "xattr.h"
 
 static int
-ext4_xattr_security_get(const struct xattr_handler *handler,
+ecfs_xattr_security_get(const struct xattr_handler *handler,
 			struct dentry *unused, struct inode *inode,
 			const char *name, void *buffer, size_t size)
 {
-	return ext4_xattr_get(inode, EXT4_XATTR_INDEX_SECURITY,
+	return ecfs_xattr_get(inode, ECFS_XATTR_INDEX_SECURITY,
 			      name, buffer, size);
 }
 
 static int
-ext4_xattr_security_set(const struct xattr_handler *handler,
+ecfs_xattr_security_set(const struct xattr_handler *handler,
 			struct mnt_idmap *idmap,
 			struct dentry *unused, struct inode *inode,
 			const char *name, const void *value,
 			size_t size, int flags)
 {
-	return ext4_xattr_set(inode, EXT4_XATTR_INDEX_SECURITY,
+	return ecfs_xattr_set(inode, ECFS_XATTR_INDEX_SECURITY,
 			      name, value, size, flags);
 }
 
 static int
-ext4_initxattrs(struct inode *inode, const struct xattr *xattr_array,
+ecfs_initxattrs(struct inode *inode, const struct xattr *xattr_array,
 		void *fs_info)
 {
 	const struct xattr *xattr;
@@ -41,8 +41,8 @@ ext4_initxattrs(struct inode *inode, const struct xattr *xattr_array,
 	int err = 0;
 
 	for (xattr = xattr_array; xattr->name != NULL; xattr++) {
-		err = ext4_xattr_set_handle(handle, inode,
-					    EXT4_XATTR_INDEX_SECURITY,
+		err = ecfs_xattr_set_handle(handle, inode,
+					    ECFS_XATTR_INDEX_SECURITY,
 					    xattr->name, xattr->value,
 					    xattr->value_len, XATTR_CREATE);
 		if (err < 0)
@@ -52,15 +52,15 @@ ext4_initxattrs(struct inode *inode, const struct xattr *xattr_array,
 }
 
 int
-ext4_init_security(handle_t *handle, struct inode *inode, struct inode *dir,
+ecfs_init_security(handle_t *handle, struct inode *inode, struct inode *dir,
 		   const struct qstr *qstr)
 {
 	return security_inode_init_security(inode, dir, qstr,
-					    &ext4_initxattrs, handle);
+					    &ecfs_initxattrs, handle);
 }
 
-const struct xattr_handler ext4_xattr_security_handler = {
+const struct xattr_handler ecfs_xattr_security_handler = {
 	.prefix	= XATTR_SECURITY_PREFIX,
-	.get	= ext4_xattr_security_get,
-	.set	= ext4_xattr_security_set,
+	.get	= ecfs_xattr_security_get,
+	.set	= ecfs_xattr_security_set,
 };
