@@ -9,11 +9,11 @@ make
 sudo insmod ecfs.ko
 
 # 创建镜像
-sudo dd if=/dev/zero of=/tmp/ecfs.img bs=1M count=100
+#sudo dd if=/dev/zero of=/home/evers/test.img bs=1M count=16318
 
-LOOP=$(sudo losetup -f --show /tmp/ecfs.img)
+LOOP=$(sudo losetup -f --show /home/evers/test.img)
 
-sudo /home/evers/e2fsprogs/misc/mke2fs -t ext4 $LOOP
+sudo /home/evers/e2fsprogs/misc/mke2fs -t ext4 -i 32768 $LOOP
 
 # 挂载
 sudo mkdir -p /mnt/ecfs
@@ -28,6 +28,9 @@ sudo cat /mnt/ecfs/file.txt
 ls -la /mnt/ecfs/dir
 
 # 卸载
+
+#sudo losetup -a
+
 sudo umount /mnt/ecfs
 sudo losetup -d $LOOP
 sudo rmmod ecfs

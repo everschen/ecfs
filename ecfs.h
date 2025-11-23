@@ -1442,7 +1442,9 @@ struct ecfs_super_block {
 	__le16  s_encoding;		/* Filename charset encoding */
 	__le16  s_encoding_flags;	/* Filename charset encoding flags */
 	__le32  s_orphan_file_inum;	/* Inode for tracking orphan inodes */
-	__le32	s_reserved[94];		/* Padding to the end of the block */
+	__le32  s_node_id;	/* node id, start from 1 */
+	__le32  s_disk_id;	/* disk id, start form 0 */
+	__le32	s_reserved[92];		/* Padding to the end of the block */
 	__le32	s_checksum;		/* crc32c(superblock) */
 };
 
@@ -1556,6 +1558,8 @@ struct ecfs_sb_info {
 	struct completion s_kobj_unregister;
 	struct super_block *s_sb;
 	struct buffer_head *s_mmp_bh;
+	unsigned int s_node_id;
+	unsigned int s_disk_id;
 
 	/* Journaling */
 	struct journal_s *s_journal;
