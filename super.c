@@ -5188,6 +5188,9 @@ static int __ecfs_fill_super(struct fs_context *fc, struct super_block *sb)
 	es = sbi->s_es;
 	sbi->s_kbytes_written = le64_to_cpu(es->s_kbytes_written);
 
+	sbi->s_node_id = le32_to_cpu(es->s_node_id);
+	sbi->s_disk_id = le32_to_cpu(es->s_disk_id);
+
 	err = ecfs_init_metadata_csum(sb, es);
 	if (err)
 		goto failed_mount;
