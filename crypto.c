@@ -141,7 +141,7 @@ static int ecfs_set_context(struct inode *inode, const void *ctx, size_t len,
 	 * directory would imply encrypting the lost+found directory as well as
 	 * the filename "lost+found" itself.
 	 */
-	if (inode->i_ino == ECFS_ROOT_INO)
+	if (LOCAL_INO(inode->i_ino) == ECFS_ROOT_INO)
 		return -EPERM;
 
 	if (WARN_ON_ONCE(IS_DAX(inode) && i_size_read(inode)))

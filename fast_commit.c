@@ -612,7 +612,7 @@ static int __track_range(handle_t *handle, struct inode *inode, void *arg,
 	struct __track_range_args *__arg =
 		(struct __track_range_args *)arg;
 
-	if (inode->i_ino < ECFS_FIRST_INO(inode->i_sb)) {
+	if (inode->i_ino < ECFS_FIRST_INO(inode->i_sb)) { /* this i_ino may no ned to local?*/
 		ecfs_debug("Special inode %ld being modified\n", inode->i_ino);
 		return -ECANCELED;
 	}
@@ -865,7 +865,7 @@ static int ecfs_fc_write_inode(struct inode *inode, u32 *crc)
 	else if (ECFS_INODE_SIZE(inode->i_sb) > ECFS_GOOD_OLD_INODE_SIZE)
 		inode_len += ei->i_extra_isize;
 
-	fc_inode.fc_ino = cpu_to_le32(inode->i_ino);
+	fc_inode.fc_ino = cpu_to_le64(inode->i_ino);
 	tl.fc_tag = cpu_to_le16(ECFS_FC_TAG_INODE);
 	tl.fc_len = cpu_to_le16(inode_len + sizeof(fc_inode.fc_ino));
 
@@ -929,7 +929,7 @@ static int ecfs_fc_write_inode_data(struct inode *inode, u32 *crc)
 		}
 
 		if (ret == 0) {
-			lrange.fc_ino = cpu_to_le32(inode->i_ino);
+			lrange.fc_ino = cpu_to_le64(inode->i_ino);
 			lrange.fc_lblk = cpu_to_le32(map.m_lblk);
 			lrange.fc_len = cpu_to_le32(map.m_len);
 			if (!ecfs_fc_add_tlv(inode->i_sb, ECFS_FC_TAG_DEL_RANGE,
@@ -942,7 +942,7 @@ static int ecfs_fc_write_inode_data(struct inode *inode, u32 *crc)
 			/* Limit the number of blocks in one extent */
 			map.m_len = min(max, map.m_len);
 
-			fc_ext.fc_ino = cpu_to_le32(inode->i_ino);
+			fc_ext.fc_ino = cpu_to_le64(inode->i_ino);
 			ex = (struct ecfs_extent *)&fc_ext.fc_ex;
 			ex->ee_block = cpu_to_le32(map.m_lblk);
 			ex->ee_len = cpu_to_le16(map.m_len);

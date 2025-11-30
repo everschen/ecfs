@@ -2086,7 +2086,7 @@ void ecfs_insert_dentry(struct inode *dir,
 		de = de1;
 	}
 	de->file_type = ECFS_FT_UNKNOWN;
-	de->inode = cpu_to_le32(inode->i_ino);
+	de->inode = cpu_to_le64(inode->i_ino);
 	ecfs_set_de_type(inode->i_sb, de, inode->i_mode);
 	de->name_len = fname_len(fname);
 	memcpy(de->name, fname_name(fname), fname_len(fname));
@@ -2926,7 +2926,7 @@ int ecfs_init_dirblock(handle_t *handle, struct inode *inode,
 	if (ecfs_has_feature_metadata_csum(inode->i_sb))
 		csum_size = sizeof(struct ecfs_dir_entry_tail);
 
-	de->inode = cpu_to_le32(inode->i_ino);
+	de->inode = cpu_to_le64(inode->i_ino);
 	de->name_len = 1;
 	de->rec_len = ecfs_rec_len_to_disk(ecfs_dir_rec_len(de->name_len, NULL),
 					   blocksize);
@@ -3084,7 +3084,7 @@ bool ecfs_empty_dir(struct inode *inode)
 	de = (struct ecfs_dir_entry_2 *) bh->b_data;
 	if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 0) ||
-	    le32_to_cpu(de->inode) != inode->i_ino || de->name_len != 1 ||
+	    le64_to_cpu(de->inode) != inode->i_ino || de->name_len != 1 ||
 	    de->name[0] != '.') {
 		ecfs_warning_inode(inode, "directory missing '.'");
 		brelse(bh);
@@ -3159,7 +3159,7 @@ static int ecfs_rmdir(struct inode *dir, struct dentry *dentry)
 	inode = d_inode(dentry);
 
 	retval = -EFSCORRUPTED;
-	if (le32_to_cpu(de->inode) != inode->i_ino)
+	if (le64_to_cpu(de->inode) != inode->i_ino)
 		goto end_rmdir;
 
 	retval = -ENOTEMPTY;
@@ -3239,7 +3239,7 @@ int __ecfs_unlink(struct inode *dir, const struct qstr *d_name,
 	if (!bh)
 		return -ENOENT;
 
-	if (le32_to_cpu(de->inode) != inode->i_ino) {
+	if (le64_to_cpu(de->inode) != inode->i_ino) {
 		/*
 		 * It's okay if we find dont find dentry which matches
 		 * the inode. That's because it might have gotten
@@ -3535,7 +3535,7 @@ static struct buffer_head *ecfs_get_first_dir_block(handle_t *handle,
 		de = (struct ecfs_dir_entry_2 *) bh->b_data;
 		if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data,
 					 bh->b_size, 0) ||
-		    le32_to_cpu(de->inode) != inode->i_ino ||
+		    le64_to_cpu(de->inode) != inode->i_ino ||
 		    de->name_len != 1 || de->name[0] != '.') {
 			ECFS_ERROR_INODE(inode, "directory missing '.'");
 			brelse(bh);
@@ -3594,7 +3594,7 @@ static int ecfs_rename_dir_prepare(handle_t *handle, struct ecfs_renament *ent, 
 					      &ent->dir_inlined);
 	if (!ent->dir_bh)
 		return retval;
-	if (le32_to_cpu(ent->parent_de->inode) != ent->dir->i_ino)
+	if (le64_to_cpu(ent->parent_de->inode) != ent->dir->i_ino)
 		return -EFSCORRUPTED;
 	BUFFER_TRACE(ent->dir_bh, "get_write_access");
 	return ecfs_journal_get_write_access(handle, ent->dir->i_sb,
@@ -3710,7 +3710,7 @@ static void ecfs_rename_delete(handle_t *handle, struct ecfs_renament *ent,
 	 * to a stale entry in the unused part of ent->bh so just checking inum
 	 * and the name isn't enough.
 	 */
-	if (le32_to_cpu(ent->de->inode) != ent->inode->i_ino ||
+	if (le64_to_cpu(ent->de->inode) != ent->inode->i_ino ||
 	    ent->de->name_len != ent->dentry->d_name.len ||
 	    strncmp(ent->de->name, ent->dentry->d_name.name,
 		    ent->de->name_len) ||
@@ -3848,7 +3848,7 @@ static int ecfs_rename(struct mnt_idmap *idmap, struct inode *old_dir,
 	 *  same name. Goodbye sticky bit ;-<
 	 */
 	retval = -ENOENT;
-	if (!old.bh || le32_to_cpu(old.de->inode) != old.inode->i_ino)
+	if (!old.bh || le64_to_cpu(old.de->inode) != old.inode->i_ino)
 		goto release_bh;
 
 	new.bh = ecfs_find_entry(new.dir, &new.dentry->d_name,
@@ -4083,7 +4083,7 @@ static int ecfs_cross_rename(struct inode *old_dir, struct dentry *old_dentry,
 	 *  same name. Goodbye sticky bit ;-<
 	 */
 	retval = -ENOENT;
-	if (!old.bh || le32_to_cpu(old.de->inode) != old.inode->i_ino)
+	if (!old.bh || le64_to_cpu(old.de->inode) != old.inode->i_ino)
 		goto end_rename;
 
 	new.bh = ecfs_find_entry(new.dir, &new.dentry->d_name,
@@ -4095,7 +4095,7 @@ static int ecfs_cross_rename(struct inode *old_dir, struct dentry *old_dentry,
 	}
 
 	/* RENAME_EXCHANGE case: old *and* new must both exist */
-	if (!new.bh || le32_to_cpu(new.de->inode) != new.inode->i_ino)
+	if (!new.bh || le64_to_cpu(new.de->inode) != new.inode->i_ino)
 		goto end_rename;
 
 	handle = ecfs_journal_start(old.dir, ECFS_HT_DIR,

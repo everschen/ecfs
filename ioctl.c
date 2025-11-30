@@ -347,7 +347,7 @@ void ecfs_reset_inode_seed(struct inode *inode)
 {
 	struct ecfs_inode_info *ei = ECFS_I(inode);
 	struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
-	__le32 inum = cpu_to_le32(inode->i_ino);
+	__le32 inum = cpu_to_le64(inode->i_ino);
 	__le32 gen = cpu_to_le32(inode->i_generation);
 	__u32 csum;
 

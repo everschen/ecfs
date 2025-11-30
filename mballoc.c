@@ -572,7 +572,7 @@ static void mb_free_blocks_double(struct inode *inode, struct ecfs_buddy *e4b,
 			ecfs_mark_group_bitmap_corrupted(sb, e4b->bd_group,
 					ECFS_GROUP_INFO_BBITMAP_CORRUPT);
 			ecfs_grp_locked_error(sb, e4b->bd_group,
-					      inode ? inode->i_ino : 0,
+					      inode ? LOCAL_INO(inode->i_ino) : 0,
 					      blocknr,
 					      "freeing block already freed "
 					      "(bit %u)",
@@ -2012,7 +2012,7 @@ static void mb_free_blocks(struct inode *inode, struct ecfs_buddy *e4b,
 		ecfs_mark_group_bitmap_corrupted(sb, e4b->bd_group,
 				ECFS_GROUP_INFO_BBITMAP_CORRUPT);
 		ecfs_grp_locked_error(sb, e4b->bd_group,
-				      inode ? inode->i_ino : 0, blocknr,
+				      inode ? LOCAL_INO(inode->i_ino) : 0, blocknr,
 				      "freeing already freed block (bit %u); block bitmap corrupt.",
 				      block);
 		return;
@@ -3488,7 +3488,7 @@ static int ecfs_mb_init_backend(struct super_block *sb)
 	 * use ECFS_BAD_INO for the buddy cache inode number.  This inode is
 	 * not in the inode hash, so it should never be found by iget(), but
 	 * this will avoid confusion if it ever shows up during debugging. */
-	sbi->s_buddy_cache->i_ino = ECFS_BAD_INO;
+	sbi->s_buddy_cache->i_ino = ECFS_BAD_INO;  /*to be updated for special inode number*/
 	ECFS_I(sbi->s_buddy_cache)->i_disksize = 0;
 	for (i = 0; i < ngroups; i++) {
 		cond_resched();

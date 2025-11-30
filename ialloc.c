@@ -631,7 +631,7 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 	 *
 	 * So add our directory's i_ino into the starting point for the hash.
 	 */
-	*group = (*group + parent->i_ino) % ngroups;
+	*group = (*group + LOCAL_INO(parent->i_ino)) % ngroups;
 
 	/*
 	 * Use a quadratic hash to find a group with a free inode and some free
@@ -1247,7 +1247,7 @@ got:
 						flex_group)->free_inodes);
 	}
 
-	inode->i_ino = ino + group * ECFS_INODES_PER_GROUP(sb);
+	inode->i_ino = ino + group * ECFS_INODES_PER_GROUP(sb); /*to be updated to use node id and disk id here*/
 	/* This is the optimal IO size (for stat), not the fs block size */
 	inode->i_blocks = 0;
 	simple_inode_init_ts(inode);
@@ -1286,7 +1286,7 @@ got:
 	/* Precompute checksum seed for inode metadata */
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		__u32 csum;
-		__le32 inum = cpu_to_le32(inode->i_ino);
+		__le32 inum = cpu_to_le64(inode->i_ino);
 		__le32 gen = cpu_to_le32(inode->i_generation);
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));

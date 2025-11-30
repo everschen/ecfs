@@ -75,8 +75,8 @@ static int ecfs_orphan_file_add(handle_t *handle, struct inode *inode)
 				looped++;
 			}
 		}
-	} while (cmpxchg(&bdata[j], (__le32)0, cpu_to_le32(inode->i_ino)) !=
-		 (__le32)0);
+	} while (cmpxchg(&bdata[j], (__le64)0, cpu_to_le64(inode->i_ino)) !=
+		 (__le64)0);
 
 	ECFS_I(inode)->i_orphan_idx = i * inodes_per_ob + j;
 	ecfs_set_inode_state(inode, ECFS_STATE_ORPHAN_FILE);
@@ -155,7 +155,7 @@ int ecfs_orphan_add(handle_t *handle, struct inode *inode)
 		/* Insert this inode at the head of the on-disk orphan list */
 		NEXT_ORPHAN(inode) = le32_to_cpu(sbi->s_es->s_last_orphan);
 		lock_buffer(sbi->s_sbh);
-		sbi->s_es->s_last_orphan = cpu_to_le32(inode->i_ino);
+		sbi->s_es->s_last_orphan = cpu_to_le64(inode->i_ino);
 		ecfs_superblock_csum_set(sb);
 		unlock_buffer(sbi->s_sbh);
 		dirty = true;
