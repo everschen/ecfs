@@ -1287,7 +1287,7 @@ int ecfs_inlinedir_to_tree(struct file *dir_file,
 		 * them differently.
 		 */
 		if (pos == 0) {
-			fake.inode = cpu_to_le32(inode->i_ino);
+			fake.inode = cpu_to_le64(inode->i_ino);
 			fake.name_len = 1;
 			memcpy(fake.name, ".", 2);
 			fake.rec_len = ecfs_rec_len_to_disk(
@@ -1558,7 +1558,7 @@ int ecfs_try_create_inline_dir(handle_t *handle, struct inode *parent,
 	 * and create a fake dentry to cover the left space.
 	 */
 	de = (struct ecfs_dir_entry_2 *)ecfs_raw_inode(&iloc)->i_block;
-	de->inode = cpu_to_le32(parent->i_ino);
+	de->inode = cpu_to_le64(parent->i_ino);
 	de = (struct ecfs_dir_entry_2 *)((void *)de + ECFS_INLINE_DOTDOT_SIZE);
 	de->inode = 0;
 	de->rec_len = ecfs_rec_len_to_disk(
@@ -1743,7 +1743,7 @@ bool ecfs_empty_inline_dir(struct inode *dir, int *has_inline_data)
 	}
 
 	de = (struct ecfs_dir_entry_2 *)ecfs_raw_inode(&iloc)->i_block;
-	if (!le32_to_cpu(de->inode)) {
+	if (!le64_to_cpu(de->inode)) {
 		ecfs_warning(dir->i_sb,
 			     "bad inline directory (dir #%lu) - no `..'",
 			     dir->i_ino);
@@ -1760,14 +1760,14 @@ bool ecfs_empty_inline_dir(struct inode *dir, int *has_inline_data)
 					 inline_size, offset)) {
 			ecfs_warning(dir->i_sb,
 				     "bad inline directory (dir #%lu) - "
-				     "inode %u, rec_len %u, name_len %d"
+				     "inode %llu, rec_len %u, name_len %d"
 				     "inline size %d",
-				     dir->i_ino, le32_to_cpu(de->inode),
+				     dir->i_ino, le64_to_cpu(de->inode),
 				     le16_to_cpu(de->rec_len), de->name_len,
 				     inline_size);
 			goto out;
 		}
-		if (le32_to_cpu(de->inode)) {
+		if (le64_to_cpu(de->inode)) {
 			goto out;
 		}
 		offset += ecfs_rec_len_from_disk(de->rec_len, inline_size);

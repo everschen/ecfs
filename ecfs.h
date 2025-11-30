@@ -322,6 +322,9 @@ struct ecfs_io_submit {
 /* First non-reserved inode for old ecfs filesystems */
 #define ECFS_GOOD_OLD_FIRST_INO	11
 
+#define INO_MASK 0x00000000FFFFFFFFULL /* local inode mask */
+#define LOCAL_INO(ino)   ((ino) & INO_MASK)
+
 /*
  * Maximal count of links to a file
  */
@@ -2338,7 +2341,7 @@ static inline int ecfs_emergency_state(struct super_block *sb)
 #define ECFS_BASE_DIR_LEN (sizeof(struct ecfs_dir_entry_2) - ECFS_NAME_LEN)
 
 struct ecfs_dir_entry {
-	__le32	inode;			/* Inode number */
+	__le64	inode;			/* Inode number */
 	__le16	rec_len;		/* Directory entry length */
 	__le16	name_len;		/* Name length */
 	char	name[ECFS_NAME_LEN];	/* File name */
@@ -2362,7 +2365,7 @@ struct ecfs_dir_entry_hash {
  * file_type field.
  */
 struct ecfs_dir_entry_2 {
-	__le32	inode;			/* Inode number */
+	__le64	inode;			/* Inode number */
 	__le16	rec_len;		/* Directory entry length */
 	__u8	name_len;		/* Name length */
 	__u8	file_type;		/* See file type macros ECFS_FT_* below */

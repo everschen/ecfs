@@ -1785,7 +1785,7 @@ static int ecfs_xattr_set_entry(struct ecfs_xattr_info *i,
 	if (i->value) {
 		/* Insert new value. */
 		if (in_inode) {
-			here->e_value_inum = cpu_to_le32(new_ea_inode->i_ino);
+			here->e_value_inum = cpu_to_le64(new_ea_inode->i_ino);
 		} else if (i->value_len) {
 			void *val = s->base + min_offs - new_size;
 
