@@ -5282,7 +5282,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
 		__u32 csum;
-		__le32 inum = cpu_to_le64(inode->i_ino);
+		__le64 inum = cpu_to_le64(inode->i_ino);
 		__le32 gen = raw_inode->i_generation;
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));

@@ -37,13 +37,13 @@ struct ecfs_fc_head {
 
 /* Value structure for ECFS_FC_TAG_ADD_RANGE. */
 struct ecfs_fc_add_range {
-	__le32 fc_ino;
+	__le64 fc_ino;
 	__u8 fc_ex[12];
 };
 
 /* Value structure for tag ECFS_FC_TAG_DEL_RANGE. */
 struct ecfs_fc_del_range {
-	__le32 fc_ino;
+	__le64 fc_ino;
 	__le32 fc_lblk;
 	__le32 fc_len;
 };
@@ -53,14 +53,14 @@ struct ecfs_fc_del_range {
  * and ECFS_FC_TAG_UNLINK.
  */
 struct ecfs_fc_dentry_info {
-	__le32 fc_parent_ino;
-	__le32 fc_ino;
+	__le64 fc_parent_ino;
+	__le64 fc_ino;
 	__u8 fc_dname[];
 };
 
 /* Value structure for ECFS_FC_TAG_INODE. */
 struct ecfs_fc_inode {
-	__le32 fc_ino;
+	__le64 fc_ino;
 	__u8 fc_raw_inode[];
 };
 

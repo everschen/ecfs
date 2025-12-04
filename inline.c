@@ -930,7 +930,7 @@ void ecfs_show_inline_dir(struct inode *dir, struct buffer_head *bh,
 		de_len = ecfs_rec_len_from_disk(de->rec_len, inline_size);
 		trace_printk("de: off %u rlen %u name %.*s nlen %u ino %u\n",
 			     offset, de_len, de->name_len, de->name,
-			     de->name_len, le32_to_cpu(de->inode));
+			     de->name_len, le64_to_cpu(de->inode));
 		if (ecfs_check_dir_entry(dir, NULL, de, bh,
 					 inline_start, inline_size, offset))
 			BUG();
@@ -1146,7 +1146,7 @@ static int ecfs_convert_inline_data_nolock(handle_t *handle,
 		ECFS_I(inode)->i_disksize = inode->i_sb->s_blocksize;
 
 		error = ecfs_init_dirblock(handle, inode, data_bh,
-			  le32_to_cpu(((struct ecfs_dir_entry_2 *)buf)->inode),
+			  le64_to_cpu(((struct ecfs_dir_entry_2 *)buf)->inode),
 			  buf + ECFS_INLINE_DOTDOT_SIZE,
 			  inline_size - ECFS_INLINE_DOTDOT_SIZE);
 		if (!error)
@@ -1279,7 +1279,7 @@ int ecfs_inlinedir_to_tree(struct file *dir_file,
 		goto out;
 
 	pos = 0;
-	parent_ino = le32_to_cpu(((struct ecfs_dir_entry_2 *)dir_buf)->inode);
+	parent_ino = le64_to_cpu(((struct ecfs_dir_entry_2 *)dir_buf)->inode);
 	while (pos < inline_size) {
 		/*
 		 * As inlined dir doesn't store any information about '.' and
@@ -1297,7 +1297,7 @@ int ecfs_inlinedir_to_tree(struct file *dir_file,
 			de = &fake;
 			pos = ECFS_INLINE_DOTDOT_OFFSET;
 		} else if (pos == ECFS_INLINE_DOTDOT_OFFSET) {
-			fake.inode = cpu_to_le32(parent_ino);
+			fake.inode = cpu_to_le64(parent_ino);
 			fake.name_len = 2;
 			memcpy(fake.name, "..", 3);
 			fake.rec_len = ecfs_rec_len_to_disk(
@@ -1399,7 +1399,7 @@ int ecfs_read_inline_dir(struct file *file,
 
 	ret = 0;
 	sb = inode->i_sb;
-	parent_ino = le32_to_cpu(((struct ecfs_dir_entry_2 *)dir_buf)->inode);
+	parent_ino = le64_to_cpu(((struct ecfs_dir_entry_2 *)dir_buf)->inode);
 	offset = ctx->pos;
 
 	/*
@@ -1475,9 +1475,9 @@ int ecfs_read_inline_dir(struct file *file,
 		if (ecfs_check_dir_entry(inode, file, de, iloc.bh, dir_buf,
 					 extra_size, ctx->pos))
 			goto out;
-		if (le32_to_cpu(de->inode)) {
+		if (le64_to_cpu(de->inode)) {
 			if (!dir_emit(ctx, de->name, de->name_len,
-				      le32_to_cpu(de->inode),
+				      le64_to_cpu(de->inode),
 				      get_dtype(sb, de->file_type)))
 				goto out;
 		}

@@ -228,7 +228,7 @@ static bool ecfs_has_stable_inodes(struct super_block *sb)
 
 const struct fscrypt_operations ecfs_cryptops = {
 	.needs_bounce_pages	= 1,
-	.has_32bit_inodes	= 1,
+	.has_32bit_inodes	= 0,
 	.supports_subblock_data_units = 1,
 	.legacy_key_prefix	= "ecfs:",
 	.get_context		= ecfs_get_context,
