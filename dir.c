@@ -101,7 +101,7 @@ int __ecfs_check_dir_entry(const char *function, unsigned int line,
 						  has_csum ? NULL : dir) &&
 			  next_offset != size))
 		error_msg = "directory entry too close to block end";
-	else if (unlikely(le32_to_cpu(de->inode) >
+	else if (unlikely(le64_to_cpu(LOCAL_INO(de->inode)) >
 			le32_to_cpu(ECFS_SB(dir->i_sb)->s_es->s_inodes_count)))
 		error_msg = "inode out of bounds";
 	else if (unlikely(next_offset == size && de->name_len == 1 &&
@@ -113,14 +113,14 @@ int __ecfs_check_dir_entry(const char *function, unsigned int line,
 	if (filp)
 		ecfs_error_file(filp, function, line, bh->b_blocknr,
 				"bad entry in directory: %s - offset=%u, "
-				"inode=%u, rec_len=%d, size=%d fake=%d",
-				error_msg, offset, le32_to_cpu(de->inode),
+				"inode=%llu, rec_len=%d, size=%d fake=%d",
+				error_msg, offset, le64_to_cpu(de->inode),
 				rlen, size, fake);
 	else
 		ecfs_error_inode(dir, function, line, bh->b_blocknr,
 				"bad entry in directory: %s - offset=%u, "
-				"inode=%u, rec_len=%d, size=%d fake=%d",
-				 error_msg, offset, le32_to_cpu(de->inode),
+				"inode=%llu, rec_len=%d, size=%d fake=%d",
+				 error_msg, offset, le64_to_cpu(de->inode),
 				 rlen, size, fake);
 
 	return 1;
@@ -271,11 +271,11 @@ static int ecfs_readdir(struct file *file, struct dir_context *ctx)
 			}
 			offset += ecfs_rec_len_from_disk(de->rec_len,
 					sb->s_blocksize);
-			if (le32_to_cpu(de->inode)) {
+			if (le64_to_cpu(de->inode)) {
 				if (!IS_ENCRYPTED(inode)) {
 					if (!dir_emit(ctx, de->name,
 					    de->name_len,
-					    le32_to_cpu(de->inode),
+					    le64_to_cpu(de->inode),
 					    get_dtype(sb, de->file_type)))
 						goto done;
 				} else {
@@ -303,7 +303,7 @@ static int ecfs_readdir(struct file *file, struct dir_context *ctx)
 						goto errout;
 					if (!dir_emit(ctx,
 					    de_name.name, de_name.len,
-					    le32_to_cpu(de->inode),
+					    le64_to_cpu(de->inode),
 					    get_dtype(sb, de->file_type)))
 						goto done;
 				}
@@ -418,7 +418,7 @@ struct fname {
 	__u32		minor_hash;
 	struct rb_node	rb_hash;
 	struct fname	*next;
-	__u32		inode;
+	__u64		inode;
 	__u8		name_len;
 	__u8		file_type;
 	char		name[] __counted_by(name_len);
@@ -485,7 +485,7 @@ int ecfs_htree_store_dirent(struct file *dir_file, __u32 hash,
 		return -ENOMEM;
 	new_fn->hash = hash;
 	new_fn->minor_hash = minor_hash;
-	new_fn->inode = le32_to_cpu(dirent->inode);
+	new_fn->inode = le64_to_cpu(dirent->inode);
 	new_fn->name_len = ent_name->len;
 	new_fn->file_type = dirent->file_type;
 	memcpy(new_fn->name, ent_name->name, ent_name->len);

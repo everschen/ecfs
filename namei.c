@@ -220,7 +220,7 @@ static struct buffer_head *__ecfs_read_dirblock(struct inode *inode,
 
 struct fake_dirent
 {
-	__le32 inode;
+	__le64 inode;
 	__le16 rec_len;
 	u8 name_len;
 	u8 file_type;
@@ -1773,10 +1773,10 @@ static struct dentry *ecfs_lookup(struct inode *dir, struct dentry *dentry, unsi
 		return ERR_CAST(bh);
 	inode = NULL;
 	if (bh) {
-		__u32 ino = le32_to_cpu(de->inode);
+		__u64 ino = le64_to_cpu(de->inode);
 		brelse(bh);
 		if (!ecfs_valid_inum(dir->i_sb, ino)) {
-			ECFS_ERROR_INODE(dir, "bad inode number: %u", ino);
+			ECFS_ERROR_INODE(dir, "bad inode number: %llu", ino);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		if (unlikely(ino == dir->i_ino)) {
@@ -1787,7 +1787,7 @@ static struct dentry *ecfs_lookup(struct inode *dir, struct dentry *dentry, unsi
 		inode = ecfs_iget(dir->i_sb, ino, ECFS_IGET_NORMAL);
 		if (inode == ERR_PTR(-ESTALE)) {
 			ECFS_ERROR_INODE(dir,
-					 "deleted inode referenced: %u",
+					 "deleted inode referenced: %llu",
 					 ino);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
@@ -1817,7 +1817,7 @@ static struct dentry *ecfs_lookup(struct inode *dir, struct dentry *dentry, unsi
 
 struct dentry *ecfs_get_parent(struct dentry *child)
 {
-	__u32 ino;
+	__u64 ino;
 	struct ecfs_dir_entry_2 * de;
 	struct buffer_head *bh;
 
@@ -1826,12 +1826,12 @@ struct dentry *ecfs_get_parent(struct dentry *child)
 		return ERR_CAST(bh);
 	if (!bh)
 		return ERR_PTR(-ENOENT);
-	ino = le32_to_cpu(de->inode);
+	ino = le64_to_cpu(de->inode);
 	brelse(bh);
 
 	if (!ecfs_valid_inum(child->d_sb, ino)) {
 		ECFS_ERROR_INODE(d_inode(child),
-				 "bad parent inode number: %u", ino);
+				 "bad parent inode number: %llu", ino);
 		return ERR_PTR(-EFSCORRUPTED);
 	}
 
@@ -2934,7 +2934,7 @@ int ecfs_init_dirblock(handle_t *handle, struct inode *inode,
 	ecfs_set_de_type(inode->i_sb, de, S_IFDIR);
 
 	de = ecfs_next_entry(de, blocksize);
-	de->inode = cpu_to_le32(parent_ino);
+	de->inode = cpu_to_le64(parent_ino);
 	de->name_len = 2;
 	memcpy(de->name, "..", 3);
 	ecfs_set_de_type(inode->i_sb, de, S_IFDIR);
@@ -3094,7 +3094,7 @@ bool ecfs_empty_dir(struct inode *inode)
 	de = ecfs_next_entry(de, sb->s_blocksize);
 	if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 offset) ||
-	    le32_to_cpu(de->inode) == 0 || de->name_len != 2 ||
+	    le64_to_cpu(LOCAL_INO(de->inode)) == 0 || de->name_len != 2 ||
 	    de->name[0] != '.' || de->name[1] != '.') {
 		ecfs_warning_inode(inode, "directory missing '..'");
 		brelse(bh);
@@ -3118,7 +3118,7 @@ bool ecfs_empty_dir(struct inode *inode)
 					(offset & (sb->s_blocksize - 1)));
 		if (ecfs_check_dir_entry(inode, NULL, de, bh,
 					 bh->b_data, bh->b_size, offset) ||
-		    le32_to_cpu(de->inode)) {
+		    le64_to_cpu(de->inode)) {
 			brelse(bh);
 			return false;
 		}
@@ -3547,7 +3547,7 @@ static struct buffer_head *ecfs_get_first_dir_block(handle_t *handle,
 		de = ecfs_next_entry(de, inode->i_sb->s_blocksize);
 		if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data,
 					 bh->b_size, offset) ||
-		    le32_to_cpu(de->inode) == 0 || de->name_len != 2 ||
+		    le64_to_cpu(LOCAL_INO(de->inode)) == 0 || de->name_len != 2 ||
 		    de->name[0] != '.' || de->name[1] != '.') {
 			ECFS_ERROR_INODE(inode, "directory missing '..'");
 			brelse(bh);
@@ -3609,7 +3609,7 @@ static int ecfs_rename_dir_finish(handle_t *handle, struct ecfs_renament *ent,
 	if (!ent->dir_bh)
 		return 0;
 
-	ent->parent_de->inode = cpu_to_le32(dir_ino);
+	ent->parent_de->inode = cpu_to_le64(dir_ino);
 	BUFFER_TRACE(ent->dir_bh, "call ecfs_handle_dirty_metadata");
 	if (!ent->dir_inlined) {
 		if (is_dx(ent->inode)) {
@@ -3640,7 +3640,7 @@ static int ecfs_setent(handle_t *handle, struct ecfs_renament *ent,
 					       ECFS_JTR_NONE);
 	if (retval)
 		return retval;
-	ent->de->inode = cpu_to_le32(ino);
+	ent->de->inode = cpu_to_le64(ino);
 	if (ecfs_has_feature_filetype(ent->dir->i_sb))
 		ent->de->file_type = file_type;
 	inode_inc_iversion(ent->dir);

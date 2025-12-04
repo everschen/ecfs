@@ -1564,7 +1564,7 @@ static int ecfs_fc_replay_inode(struct super_block *sb,
 
 	memcpy(&fc_inode, val, sizeof(fc_inode));
 
-	ino = le32_to_cpu(fc_inode.fc_ino);
+	ino = le64_to_cpu(fc_inode.fc_ino);
 	trace_ecfs_fc_replay(sb, tag, ino, 0, 0);
 
 	inode = ecfs_iget(sb, ino, ECFS_IGET_NORMAL);
@@ -1888,7 +1888,7 @@ ecfs_fc_replay_del_range(struct super_block *sb,
 	trace_ecfs_fc_replay(sb, ECFS_FC_TAG_DEL_RANGE,
 		le32_to_cpu(lrange.fc_ino), cur, remaining);
 
-	inode = ecfs_iget(sb, le32_to_cpu(lrange.fc_ino), ECFS_IGET_NORMAL);
+	inode = ecfs_iget(sb, le64_to_cpu(lrange.fc_ino), ECFS_IGET_NORMAL);
 	if (IS_ERR(inode)) {
 		ecfs_debug("Inode %d not found", le32_to_cpu(lrange.fc_ino));
 		return 0;
