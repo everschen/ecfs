@@ -68,11 +68,13 @@ static void release_system_zone(struct ecfs_system_blocks *system_blks)
  */
 static int add_system_zone(struct ecfs_system_blocks *system_blks,
 			   ecfs_fsblk_t start_blk,
-			   unsigned int count, u32 ino)
+			   unsigned int count, u64 ino)
 {
 	struct ecfs_system_zone *new_entry, *entry;
 	struct rb_node **n = &system_blks->root.rb_node, *node;
 	struct rb_node *parent = NULL, *new_node;
+
+	/* since it's for system zone, so it should be local disk, the ino has been adapted in caller.*/ 
 
 	while (*n) {
 		parent = *n;
@@ -154,10 +156,13 @@ static int ecfs_protect_reserved_inode(struct super_block *sb,
 	u32 i = 0, num;
 	int err = 0, n;
 
+	u64 fid = make_fid_sbi(sbi, ino);
+
+	/* this ino is from s_journal_inum, let's assume it's local for current disk.*/
 	if ((ino < ECFS_ROOT_INO) ||
 	    (ino > le32_to_cpu(sbi->s_es->s_inodes_count)))
 		return -EINVAL;
-	inode = ecfs_iget(sb, ino, ECFS_IGET_SPECIAL);
+	inode = ecfs_iget(sb, fid, ECFS_IGET_SPECIAL);
 	if (IS_ERR(inode))
 		return PTR_ERR(inode);
 	num = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
@@ -173,7 +178,7 @@ static int ecfs_protect_reserved_inode(struct super_block *sb,
 		if (n == 0) {
 			i++;
 		} else {
-			err = add_system_zone(system_blks, map.m_pblk, n, ino);
+			err = add_system_zone(system_blks, map.m_pblk, n, fid);
 			if (err < 0) {
 				if (err == -EFSCORRUPTED) {
 					ECFS_ERROR_INODE_ERR(inode, -err,
@@ -217,6 +222,8 @@ int ecfs_setup_system_zone(struct super_block *sb)
 	ecfs_group_t i;
 	int ret;
 
+	u64 fid = make_fid_sbi(sbi, 0);
+
 	system_blks = kzalloc(sizeof(*system_blks), GFP_KERNEL);
 	if (!system_blks)
 		return -ENOMEM;
@@ -228,22 +235,22 @@ int ecfs_setup_system_zone(struct super_block *sb)
 		if (meta_blks != 0) {
 			ret = add_system_zone(system_blks,
 					ecfs_group_first_block_no(sb, i),
-					meta_blks, 0);
+					meta_blks, fid);
 			if (ret)
 				goto err;
 		}
 		gdp = ecfs_get_group_desc(sb, i, NULL);
 		ret = add_system_zone(system_blks,
-				ecfs_block_bitmap(sb, gdp), 1, 0);
+				ecfs_block_bitmap(sb, gdp), 1, fid);
 		if (ret)
 			goto err;
 		ret = add_system_zone(system_blks,
-				ecfs_inode_bitmap(sb, gdp), 1, 0);
+				ecfs_inode_bitmap(sb, gdp), 1, fid);
 		if (ret)
 			goto err;
 		ret = add_system_zone(system_blks,
 				ecfs_inode_table(sb, gdp),
-				sbi->s_itb_per_group, 0);
+				sbi->s_itb_per_group, fid);
 		if (ret)
 			goto err;
 	}

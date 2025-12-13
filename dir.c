@@ -101,7 +101,7 @@ int __ecfs_check_dir_entry(const char *function, unsigned int line,
 						  has_csum ? NULL : dir) &&
 			  next_offset != size))
 		error_msg = "directory entry too close to block end";
-	else if (unlikely(le64_to_cpu(LOCAL_INO(de->inode)) >
+	else if (unlikely(le64_to_cpu(fid_get_ino(de->inode)) >
 			le32_to_cpu(ECFS_SB(dir->i_sb)->s_es->s_inodes_count)))
 		error_msg = "inode out of bounds";
 	else if (unlikely(next_offset == size && de->name_len == 1 &&

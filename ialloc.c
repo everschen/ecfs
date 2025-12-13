@@ -631,7 +631,7 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 	 *
 	 * So add our directory's i_ino into the starting point for the hash.
 	 */
-	*group = (*group + LOCAL_INO(parent->i_ino)) % ngroups;
+	*group = (*group + fid_get_ino(parent->i_ino)) % ngroups;
 
 	/*
 	 * Use a quadratic hash to find a group with a free inode and some free
