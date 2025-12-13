@@ -1,0 +1,51 @@
+name: build-ecfs-ubuntu-6.17.0-5.5
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      # 1. 拉你自己的文件系统代码
+      - name: Checkout filesystem source
+        uses: actions/checkout@v4
+
+      # 2. 安装内核构建所需依赖
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            flex \
+            bison \
+            libssl-dev \
+            libelf-dev \
+            dwarves
+
+      # 3. 拉 Ubuntu 官方内核源码（Questing）
+      - name: Clone Ubuntu kernel source (questing)
+        run: |
+              wget -q https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/linux/6.17.0-5.5/linux_6.17.0-5.5.tar.gz
+              tar xf linux_6.17.0-5.5.tar.gz
+              mv linux ubuntu-linux
+
+      # 3.1 copy user space head file
+      - name: Copy ECFS uapi header
+        run: |
+              cp -r $GITHUB_WORKSPACE/include/uapi/linux/ecfs.h ubuntu-linux/include/uapi/linux/
+
+      # 4. 准备内核构建环境（只做模块）
+      - name: Prepare kernel build tree
+        run: |
+          cd ubuntu-linux
+          make defconfig
+          make modules_prepare
+
+      # 5. 编译你的文件系统模块
+      - name: Build filesystem module
+        run: |
+          make -C ubuntu-linux M=$GITHUB_WORKSPACE modules
