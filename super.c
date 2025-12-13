@@ -5188,8 +5188,8 @@ static int __ecfs_fill_super(struct fs_context *fc, struct super_block *sb)
 	es = sbi->s_es;
 	sbi->s_kbytes_written = le64_to_cpu(es->s_kbytes_written);
 
-	sbi->s_node_id = le32_to_cpu(es->s_node_id);
-	sbi->s_disk_id = le32_to_cpu(es->s_disk_id);
+	sbi->s_node_id = le16_to_cpu(es->s_node_id);
+	sbi->s_disk_id = le16_to_cpu(es->s_disk_id);
 
 	err = ecfs_init_metadata_csum(sb, es);
 	if (err)
@@ -5421,7 +5421,7 @@ static int __ecfs_fill_super(struct fs_context *fc, struct super_block *sb)
 	 * so we can safely mount the rest of the filesystem now.
 	 */
 
-	root = ecfs_iget(sb, ECFS_ROOT_INO, ECFS_IGET_SPECIAL);
+	root = ecfs_iget(sb, make_fid_sbi(sbi, ECFS_ROOT_INO), ECFS_IGET_SPECIAL);
 	if (IS_ERR(root)) {
 		ecfs_msg(sb, KERN_ERR, "get root inode failed");
 		err = PTR_ERR(root);

@@ -240,13 +240,13 @@ check_xattrs(struct inode *inode, struct buffer_head *bh,
 	/* Check the values */
 	while (!IS_LAST_ENTRY(entry)) {
 		u32 size = le32_to_cpu(entry->e_value_size);
-		unsigned long ea_ino = le32_to_cpu(entry->e_value_inum);
+		unsigned long ea_ino = le64_to_cpu(entry->e_value_inum);
 
 		if (!ecfs_has_feature_ea_inode(inode->i_sb) && ea_ino) {
 			err_str = "ea_inode specified without ea_inode feature enabled";
 			goto errout;
 		}
-		if (ea_ino && ((ea_ino == ECFS_ROOT_INO) ||
+		if (ea_ino && ((fid_get_ino(ea_ino) == ECFS_ROOT_INO) ||
 			       !ecfs_valid_inum(inode->i_sb, ea_ino))) {
 			err_str = "invalid ea_ino";
 			goto errout;

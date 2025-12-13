@@ -4835,8 +4835,16 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 	ecfs_fsblk_t		block;
 	struct blk_plug		plug;
 	int			inodes_per_block, inode_offset;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	iloc->bh = NULL;
+
+	/*be sure to match ino withs sb .*/
+	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+
+	ino = fid_get_ino(ino);
 	if (ino < ECFS_ROOT_INO ||
 	    ino > le32_to_cpu(ECFS_SB(sb)->s_es->s_inodes_count))
 		return -EFSCORRUPTED;
@@ -5225,9 +5233,16 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	gid_t i_gid;
 	projid_t i_projid;
 
+	/* because node id start from 1, so the top 32 bit node id and disk id always not zero */
+	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+
+	/*be sure to match ino withs sb .*/
+	ASSERT(fid_get_node_id(ino) == ECFS_SB(sb)->s_node_id);
+	ASSERT(fid_get_disk_id(ino) == ECFS_SB(sb)->s_disk_id);
+
 	if ((!(flags & ECFS_IGET_SPECIAL) && is_special_ino(sb, ino)) ||
-	    (ino < ECFS_ROOT_INO) ||
-	    (ino > le32_to_cpu(es->s_inodes_count))) {
+	    (fid_get_ino(ino) < ECFS_ROOT_INO) ||
+	    (fid_get_ino(ino) > le32_to_cpu(es->s_inodes_count))) {
 		if (flags & ECFS_IGET_HANDLE)
 			return ERR_PTR(-ESTALE);
 		__ecfs_error(sb, function, line, false, EFSCORRUPTED, 0,
@@ -5329,7 +5344,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	if (inode->i_nlink == 0) {
 		if ((inode->i_mode == 0 || flags & ECFS_IGET_SPECIAL ||
 		     !(ECFS_SB(inode->i_sb)->s_mount_state & ECFS_ORPHAN_FS)) &&
-		    ino != ECFS_BOOT_LOADER_INO) {
+		    fid_get_ino(ino) != ECFS_BOOT_LOADER_INO) {
 			/* this inode is deleted or unallocated */
 			if (flags & ECFS_IGET_SPECIAL) {
 				ecfs_error_inode(inode, function, line, 0,
@@ -5511,7 +5526,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 		else
 			init_special_inode(inode, inode->i_mode,
 			   new_decode_dev(le32_to_cpu(raw_inode->i_block[1])));
-	} else if (ino == ECFS_BOOT_LOADER_INO) {
+	} else if (fid_get_ino(ino) == ECFS_BOOT_LOADER_INO) {
 		make_bad_inode(inode);
 	} else {
 		ret = -EFSCORRUPTED;

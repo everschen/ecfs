@@ -322,8 +322,42 @@ struct ecfs_io_submit {
 /* First non-reserved inode for old ecfs filesystems */
 #define ECFS_GOOD_OLD_FIRST_INO	11
 
-#define INO_MASK 0x00000000FFFFFFFFULL /* local inode mask */
-#define LOCAL_INO(ino)   ((ino) & INO_MASK)
+
+
+/* Layout:
+ * 63..48: node_id (16 bits)
+ * 47..32: disk_id (16 bits)
+ * 31.. 0: ino     (32 bits)
+ */
+
+#define FID_NODE_SHIFT 48
+#define FID_DISK_SHIFT 32
+
+static inline uint64_t make_fid(uint16_t node_id, uint16_t disk_id, uint32_t ino) {
+    uint64_t fid = 0;
+    fid |= ((uint64_t)node_id << FID_NODE_SHIFT);
+    fid |= ((uint64_t)disk_id  << FID_DISK_SHIFT);
+    fid |= (uint64_t)ino;
+    return fid;
+}
+
+static inline uint16_t fid_get_node_id(uint64_t fid) {
+    return (uint16_t)((fid >> FID_NODE_SHIFT) & 0xFFFFu);
+}
+
+static inline uint16_t fid_get_disk_id(uint64_t fid) {
+    return (uint16_t)((fid >> FID_DISK_SHIFT) & 0xFFFFu);
+}
+
+static inline uint32_t fid_get_ino(uint64_t fid) {
+    return (uint32_t)(fid & 0xFFFFFFFFu);
+}
+
+static inline uint32_t fid_get_node_and_disk_id(uint64_t fid)
+{
+    return (uint32_t)(fid >> FID_DISK_SHIFT);
+}
+
 
 /*
  * Maximal count of links to a file
@@ -1445,9 +1479,9 @@ struct ecfs_super_block {
 	__le16  s_encoding;		/* Filename charset encoding */
 	__le16  s_encoding_flags;	/* Filename charset encoding flags */
 	__le32  s_orphan_file_inum;	/* Inode for tracking orphan inodes */
-	__le32  s_node_id;	/* node id, start from 1 */
-	__le32  s_disk_id;	/* disk id, start form 0 */
-	__le32	s_reserved[92];		/* Padding to the end of the block */
+	__le16  s_node_id;	/* node id, start from 1 */
+	__le16  s_disk_id;	/* disk id, start form 0 */
+	__le32	s_reserved[93];		/* Padding to the end of the block */
 	__le32	s_checksum;		/* crc32c(superblock) */
 };
 
@@ -1561,8 +1595,8 @@ struct ecfs_sb_info {
 	struct completion s_kobj_unregister;
 	struct super_block *s_sb;
 	struct buffer_head *s_mmp_bh;
-	unsigned int s_node_id;
-	unsigned int s_disk_id;
+	u16 s_node_id;
+	u16 s_disk_id;
 
 	/* Journaling */
 	struct journal_s *s_journal;
@@ -1779,6 +1813,10 @@ struct ecfs_sb_info {
 	struct ecfs_fc_replay_state s_fc_replay_state;
 };
 
+static inline uint64_t make_fid_sbi(struct ecfs_sb_info *sbi, uint32_t ino) {
+	return make_fid(sbi->s_node_id, sbi->s_disk_id, ino);
+}
+
 static inline struct ecfs_sb_info *ECFS_SB(struct super_block *sb)
 {
 	return sb->s_fs_info;
@@ -1814,9 +1852,18 @@ static inline void ecfs_writepages_up_write(struct super_block *sb, int ctx)
 
 static inline int ecfs_valid_inum(struct super_block *sb, unsigned long ino)
 {
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+
+	/*be sure to match ino withs sb .*/
+	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+
+	ino = fid_get_ino(ino);
+
 	return ino == ECFS_ROOT_INO ||
 		(ino >= ECFS_FIRST_INO(sb) &&
-		 ino <= le32_to_cpu(ECFS_SB(sb)->s_es->s_inodes_count));
+		 ino <= le32_to_cpu(sbi->s_es->s_inodes_count));
 }
 
 /*
@@ -3071,7 +3118,15 @@ extern int ecfs_issue_zeroout(struct inode *inode, ecfs_lblk_t lblk,
 
 static inline bool is_special_ino(struct super_block *sb, unsigned long ino)
 {
-	struct ecfs_super_block *es = ECFS_SB(sb)->s_es;
+	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+	struct ecfs_super_block *es = sbi->s_es;
+
+	/*be sure to match ino withs sb .*/
+	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+
+	ino = fid_get_ino(ino);
 
 	return (ino < ECFS_FIRST_INO(sb) && ino != ECFS_ROOT_INO) ||
 		ino == le32_to_cpu(es->s_usr_quota_inum) ||
