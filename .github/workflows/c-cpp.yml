@@ -40,7 +40,7 @@ jobs:
               cp $GITHUB_WORKSPACE/include/linux/ecfs.h ubuntu-linux/include/linux/
               mkdir -p ubuntu-linux/include/trace/events
               cp $GITHUB_WORKSPACE/trace/events/ecfs.h ubuntu-linux/include/trace/events/
-              cp $GITHUB_WORKSPACE/Module.symvers ubuntu-linux/
+              cp $GITHUB_WORKSPACE/symvers/Module.symvers ubuntu-linux/
 
 
       # 5. 准备内核构建环境（只做模块）
