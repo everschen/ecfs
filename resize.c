@@ -1736,7 +1736,7 @@ int ecfs_group_add(struct super_block *sb, struct ecfs_new_group_data *input)
 				     "No reserved GDT blocks, can't resize");
 			return -EPERM;
 		}
-		inode = ecfs_iget(sb, ECFS_RESIZE_INO, ECFS_IGET_SPECIAL);
+		inode = ecfs_iget(sb, make_fid_sbi(sbi, ECFS_RESIZE_INO), ECFS_IGET_SPECIAL);
 		if (IS_ERR(inode)) {
 			ecfs_warning(sb, "Error opening resize inode");
 			return PTR_ERR(inode);
@@ -2078,7 +2078,7 @@ retry:
 		}
 
 		if (!resize_inode)
-			resize_inode = ecfs_iget(sb, ECFS_RESIZE_INO,
+			resize_inode = ecfs_iget(sb, make_fid_sbi(sbi, ECFS_RESIZE_INO),
 						 ECFS_IGET_SPECIAL);
 		if (IS_ERR(resize_inode)) {
 			ecfs_warning(sb, "Error opening resize inode");
