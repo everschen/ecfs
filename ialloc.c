@@ -278,6 +278,7 @@ void ecfs_free_inode(handle_t *handle, struct inode *inode)
 	ecfs_clear_inode(inode);
 
 	es = sbi->s_es;
+	ino = fid_get_ino(ino); /*ino should be local from here.*/
 	if (ino < ECFS_FIRST_INO(sb) || ino > le32_to_cpu(es->s_inodes_count)) {
 		ecfs_error(sb, "reserved or nonexistent inode %lu", ino);
 		goto error_return;
@@ -759,6 +760,7 @@ int ecfs_mark_inode_used(struct super_block *sb, int ino)
 	int bit;
 	int err;
 
+	ino = fid_get_ino(ino);
 	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		return -EFSCORRUPTED;
 
@@ -1247,7 +1249,7 @@ got:
 						flex_group)->free_inodes);
 	}
 
-	inode->i_ino = ino + group * ECFS_INODES_PER_GROUP(sb); /*to be updated to use node id and disk id here*/
+	inode->i_ino = make_fid_sbi(sbi, ino + group * ECFS_INODES_PER_GROUP(sb)); /*updated to use node id and disk id here*/
 	/* This is the optimal IO size (for stat), not the fs block size */
 	inode->i_blocks = 0;
 	simple_inode_init_ts(inode);
@@ -1373,6 +1375,7 @@ struct inode *ecfs_orphan_get(struct super_block *sb, unsigned long ino)
 	struct inode *inode = NULL;
 	int err = -EFSCORRUPTED;
 
+	ino = fid_get_ino(ino);
 	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		goto bad_orphan;
 

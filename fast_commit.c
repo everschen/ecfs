@@ -612,7 +612,7 @@ static int __track_range(handle_t *handle, struct inode *inode, void *arg,
 	struct __track_range_args *__arg =
 		(struct __track_range_args *)arg;
 
-	if (inode->i_ino < ECFS_FIRST_INO(inode->i_sb)) { /* this i_ino may no ned to local?*/
+	if (fid_get_ino(inode->i_ino) < ECFS_FIRST_INO(inode->i_sb)) { /* s_first_ino is 32 bit.*/
 		ecfs_debug("Special inode %ld being modified\n", inode->i_ino);
 		return -ECANCELED;
 	}
