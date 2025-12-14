@@ -33,19 +33,24 @@ jobs:
               tar xf linux_6.17.0-5.5.tar.gz
               mv linux ubuntu-linux
 
-      # 3.1 copy user space head file
+      # 4 Copy ECFS headers to kernel source
       - name: Copy ECFS uapi header
         run: |
               cp -r $GITHUB_WORKSPACE/include/uapi/linux/ecfs.h ubuntu-linux/include/uapi/linux/
+              cp $GITHUB_WORKSPACE/include/linux/ecfs.h ubuntu-linux/include/linux/
+              mkdir -p ubuntu-linux/include/trace/events
+              cp $GITHUB_WORKSPACE/trace/events/ecfs.h ubuntu-linux/include/trace/events/
+              cp $GITHUB_WORKSPACE/Module.symvers ubuntu-linux/
 
-      # 4. 准备内核构建环境（只做模块）
+
+      # 5. 准备内核构建环境（只做模块）
       - name: Prepare kernel build tree
         run: |
           cd ubuntu-linux
           make defconfig
           make modules_prepare
 
-      # 5. 编译你的文件系统模块
+      # 6. 编译你的文件系统模块
       - name: Build filesystem module
         run: |
           make -C ubuntu-linux M=$GITHUB_WORKSPACE modules
