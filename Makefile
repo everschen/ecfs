@@ -44,6 +44,6 @@ all:
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
-	rm -f Module.symvers modules.order
+	rm -f modules.order
 
 endif
