@@ -380,7 +380,7 @@ static long swap_inode_boot_loader(struct super_block *sb,
 	blkcnt_t blocks;
 	unsigned short bytes;
 
-	inode_bl = ecfs_iget(sb, ECFS_BOOT_LOADER_INO,
+	inode_bl = ecfs_iget(sb, make_fid_sbi(ECFS_SB(sb), ECFS_BOOT_LOADER_INO),
 			ECFS_IGET_SPECIAL | ECFS_IGET_BAD);
 	if (IS_ERR(inode_bl))
 		return PTR_ERR(inode_bl);

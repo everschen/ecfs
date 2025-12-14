@@ -10,7 +10,7 @@
 # Linux 内核模块
 *.ko
 
-#Module.symvers
+Module.symvers
 ecfs.mod
 ecfs.mod.c
 modules.order

@@ -7011,6 +7011,7 @@ static int ecfs_quota_on(struct super_block *sb, int type, int format_id,
 
 static inline bool ecfs_check_quota_inum(int type, unsigned long qf_inum)
 {
+	/* qf_inum is from ECFS_SB(sb)->s_es->s_usr_quota_inum/s_grp_quota_inum/s_prj_quota_inum , it's 32 bit, so only local ino is saved.*/
 	switch (type) {
 	case USRQUOTA:
 		return qf_inum == ECFS_USR_QUOTA_INO;
