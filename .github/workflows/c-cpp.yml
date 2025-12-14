@@ -29,9 +29,9 @@ jobs:
       # 3. 拉 Ubuntu 官方内核源码（Questing）
       - name: Clone Ubuntu kernel source (questing)
         run: |
-              wget -q https://launchpad.net/ubuntu/+source/linux/6.17.0-5.5/+download/linux_6.17.0-5.5.tar.gz
+              wget -q wget -q https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/linux/6.17.0-5.5/linux_6.17.0-5.5.tar.gz
               tar xf linux_6.17.0-5.5.tar.gz
-              mv linux-6.17.0 ubuntu-linux
+              mv linux ubuntu-linux
 
       # 4. 准备内核构建环境（只做模块）
       - name: Prepare kernel build tree
