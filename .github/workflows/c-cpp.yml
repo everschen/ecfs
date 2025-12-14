@@ -30,6 +30,8 @@ jobs:
       - name: Clone Ubuntu kernel source (questing)
         run: |
           git clone \
+            --depth=1 \
+            --branch Ubuntu-6.17.0-5.5 \
             https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux \
             ubuntu-linux
           cd ubuntu-linux
