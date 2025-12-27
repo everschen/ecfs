@@ -1,6 +1,4 @@
-# ECFS
-
-## kernel space distribute file system
+# ECFS - a kernel space scalable distributed file system
 
 ### Development Plan
 
