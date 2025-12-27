@@ -2,9 +2,8 @@
 
 ## kernel space distribute file system
 
-### development plan
+### Development Plan
 
-phase one: one node, one disk;
-phase two: one node, two disks;
-phase three: two nodes, two disks for each node;
-
+- Phase one: one node, one disk
+- Phase two: one node, two disks
+- Phase three: two nodes, two disks for each node
