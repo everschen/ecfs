@@ -1,10 +1,14 @@
-# ECFS
+# ECFS - a kernel space scalable distributed file system
 
-## kernel space distribute file system
+### Development Plan
 
-### development plan
+- Phase one: one node, one disk
+    - fid, inode design ready
+    - unit test system
 
-phase one: one node, one disk;
-phase two: one node, two disks;
-phase three: two nodes, two disks for each node;
+- Phase two: one node, two disks
+    - support for two disks
 
+
+- Phase three: two nodes, two disks for each node
+    - RPC system ready
