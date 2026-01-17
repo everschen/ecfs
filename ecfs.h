@@ -63,14 +63,12 @@
  */
 #define DOUBLE_CHECK__
 
+
 /*
  * Define ECFSFS_DEBUG to produce debug messages
  */
 #undef ECFSFS_DEBUG
 
-/*
- * Debug code
- */
 #ifdef ECFSFS_DEBUG
 #define ecfs_debug(f, a...)						\
 	do {								\
@@ -321,6 +319,18 @@ struct ecfs_io_submit {
 
 /* First non-reserved inode for old ecfs filesystems */
 #define ECFS_GOOD_OLD_FIRST_INO	11
+
+#define ECFS_DIR_ENTRY_HEADER_LEN 12
+
+
+#ifdef ECFSFS_DEBUG
+#define ECFS_CRIT(fmt, ...) \
+	printk(KERN_CRIT "ECFS ecfs %s:%d: " fmt "\n", \
+	       __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+#define ECFS_CRIT(fmt, ...)	no_printk(fmt, ##__VA_ARGS__)
+#endif
+
 
 
 
@@ -1855,9 +1865,13 @@ static inline int ecfs_valid_inum(struct super_block *sb, unsigned long ino)
 	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	/*be sure to match ino withs sb .*/
-	ASSERT(fid_get_node_and_disk_id(ino) != 0);
-	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
-	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+	// if (fid_get_ino(ino) >= ECFS_FIRST_INO(sb))
+	// {
+	// 	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	// 	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	// 	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+	// }
+
 
 	ino = fid_get_ino(ino);
 
@@ -2440,8 +2454,8 @@ static inline bool ecfs_hash_in_dirent(const struct inode *inode)
  * records checksums.
  */
 struct ecfs_dir_entry_tail {
-	__le32	det_reserved_zero1;	/* Pretend to be unused */
-	__le16	det_rec_len;		/* 12 */
+	__le64	det_reserved_zero1;	/* Pretend to be unused */
+	__le16	det_rec_len;		/* 16 */
 	__u8	det_reserved_zero2;	/* Zero name length */
 	__u8	det_reserved_ft;	/* 0xDE, fake file type */
 	__le32	det_checksum;		/* crc32c(uuid+inum+dirblock) */
@@ -2487,7 +2501,7 @@ struct ecfs_dir_entry_tail {
 static inline unsigned int ecfs_dir_rec_len(__u8 name_len,
 						const struct inode *dir)
 {
-	int rec_len = (name_len + 8 + ECFS_DIR_ROUND);
+	int rec_len = (name_len + ECFS_DIR_ENTRY_HEADER_LEN + ECFS_DIR_ROUND);
 
 	if (dir && ecfs_hash_in_dirent(dir))
 		rec_len += sizeof(struct ecfs_dir_entry_hash);
@@ -3122,9 +3136,9 @@ static inline bool is_special_ino(struct super_block *sb, unsigned long ino)
 	struct ecfs_super_block *es = sbi->s_es;
 
 	/*be sure to match ino withs sb .*/
-	ASSERT(fid_get_node_and_disk_id(ino) != 0);
-	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
-	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+	// ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	// ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	// ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
 
 	ino = fid_get_ino(ino);
 

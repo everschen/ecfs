@@ -101,7 +101,7 @@ int __ecfs_check_dir_entry(const char *function, unsigned int line,
 						  has_csum ? NULL : dir) &&
 			  next_offset != size))
 		error_msg = "directory entry too close to block end";
-	else if (unlikely(le64_to_cpu(fid_get_ino(de->inode)) >
+	else if (unlikely(le32_to_cpu(fid_get_ino(de->inode)) >
 			le32_to_cpu(ECFS_SB(dir->i_sb)->s_es->s_inodes_count)))
 		error_msg = "inode out of bounds";
 	else if (unlikely(next_offset == size && de->name_len == 1 &&
@@ -113,13 +113,13 @@ int __ecfs_check_dir_entry(const char *function, unsigned int line,
 	if (filp)
 		ecfs_error_file(filp, function, line, bh->b_blocknr,
 				"bad entry in directory: %s - offset=%u, "
-				"inode=%llu, rec_len=%d, size=%d fake=%d",
+				"inode=%llx, rec_len=%d, size=%d fake=%d",
 				error_msg, offset, le64_to_cpu(de->inode),
 				rlen, size, fake);
 	else
 		ecfs_error_inode(dir, function, line, bh->b_blocknr,
 				"bad entry in directory: %s - offset=%u, "
-				"inode=%llu, rec_len=%d, size=%d fake=%d",
+				"inode=%llx, rec_len=%d, size=%d fake=%d",
 				 error_msg, offset, le64_to_cpu(de->inode),
 				 rlen, size, fake);
 
@@ -275,7 +275,7 @@ static int ecfs_readdir(struct file *file, struct dir_context *ctx)
 				if (!IS_ENCRYPTED(inode)) {
 					if (!dir_emit(ctx, de->name,
 					    de->name_len,
-					    le64_to_cpu(de->inode),
+					    fid_get_ino(de->inode),
 					    get_dtype(sb, de->file_type)))
 						goto done;
 				} else {
@@ -303,7 +303,7 @@ static int ecfs_readdir(struct file *file, struct dir_context *ctx)
 						goto errout;
 					if (!dir_emit(ctx,
 					    de_name.name, de_name.len,
-					    le64_to_cpu(de->inode),
+					    fid_get_ino(de->inode),
 					    get_dtype(sb, de->file_type)))
 						goto done;
 				}
@@ -544,7 +544,7 @@ static int call_filldir(struct file *file, struct dir_context *ctx,
 	while (fname) {
 		if (!dir_emit(ctx, fname->name,
 				fname->name_len,
-				fname->inode,
+				fid_get_ino(fname->inode),
 				get_dtype(sb, fname->file_type))) {
 			info->extra_fname = fname;
 			return 1;

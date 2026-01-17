@@ -808,12 +808,12 @@ void __ecfs_error_inode(struct inode *inode, const char *function,
 		vaf.va = &args;
 		if (block)
 			printk(KERN_CRIT "ECFS-fs error (device %s): %s:%d: "
-			       "inode #%lu: block %llu: comm %s: %pV\n",
+			       "inode #%lx: block %llu: comm %s: %pV\n",
 			       inode->i_sb->s_id, function, line, inode->i_ino,
 			       block, current->comm, &vaf);
 		else
 			printk(KERN_CRIT "ECFS-fs error (device %s): %s:%d: "
-			       "inode #%lu: comm %s: %pV\n",
+			       "inode #%lx: comm %s: %pV\n",
 			       inode->i_sb->s_id, function, line, inode->i_ino,
 			       current->comm, &vaf);
 		va_end(args);
@@ -5717,7 +5717,10 @@ static struct inode *ecfs_get_journal_inode(struct super_block *sb,
 	 * happen if we iget() an unused inode, as the subsequent iput()
 	 * will try to delete it.
 	 */
-	journal_inode = ecfs_iget(sb, journal_inum, ECFS_IGET_SPECIAL);
+
+	/*since the journal_inum is from le32_to_cpu(es->s_journal_inum);, it is 32 bit num, so no node and disk id.*/
+	journal_inode = ecfs_iget(sb, make_fid_sbi(ECFS_SB(sb), journal_inum), ECFS_IGET_SPECIAL);
+	//journal_inode = ecfs_iget(sb, journal_inum, ECFS_IGET_SPECIAL);
 	if (IS_ERR(journal_inode)) {
 		ecfs_msg(sb, KERN_ERR, "no journal found");
 		return ERR_CAST(journal_inode);

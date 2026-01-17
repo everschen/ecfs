@@ -950,7 +950,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 	/* Cannot create files in a deleted directory */
 	if (!dir || !dir->i_nlink)
 		return ERR_PTR(-EPERM);
-
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	sb = dir->i_sb;
 	sbi = ECFS_SB(sb);
 
@@ -964,6 +964,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 	ei = ECFS_I(inode);
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 
 	/*
 	 * Initialize owners and quota early so that we don't have to account
@@ -981,6 +982,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 	} else
 		inode_init_owner(idmap, inode, dir, mode);
 
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	if (ecfs_has_feature_project(sb) &&
 	    ecfs_test_inode_flag(dir, ECFS_INODE_PROJINHERIT))
 		ei->i_projid = ECFS_I(dir)->i_projid;
@@ -992,7 +994,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 		if (err)
 			goto out;
 	}
-
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	err = dquot_initialize(inode);
 	if (err)
 		goto out;
@@ -1006,6 +1008,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 		nblocks += ret2;
 	}
 
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	if (!goal)
 		goal = sbi->s_inode_goal;
 
@@ -1016,6 +1019,7 @@ struct inode *__ecfs_new_inode(struct mnt_idmap *idmap,
 		goto got_group;
 	}
 
+	ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	if (S_ISDIR(mode))
 		ret2 = find_group_orlov(sb, dir, &group, mode, qstr);
 	else
@@ -1032,6 +1036,7 @@ got_group:
 	 * unless we get unlucky and it turns out the group we selected
 	 * had its last inode grabbed by someone else.
 	 */
+	ECFS_CRIT("ino=%ld qstr.name.name=%s group=%d", ino, qstr->name, group);
 	for (i = 0; i < ngroups; i++, ino = 0) {
 		err = -EIO;
 
@@ -1044,6 +1049,7 @@ got_group:
 		 */
 		if (ecfs_free_inodes_count(sb, gdp) == 0)
 			goto next_group;
+		ECFS_CRIT("ino=%ld qstr.name.name=%s ngroups=%d", ino, qstr->name, ngroups);
 
 		if (!(sbi->s_mount_state & ECFS_FC_REPLAY)) {
 			grp = ecfs_get_group_info(sb, group);
@@ -1089,6 +1095,7 @@ got_group:
 				goto out;
 			}
 		}
+		ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 		BUFFER_TRACE(inode_bitmap_bh, "get_write_access");
 		err = ecfs_journal_get_write_access(handle, sb, inode_bitmap_bh,
 						    ECFS_JTR_NONE);
@@ -1110,14 +1117,18 @@ got_group:
 				ret2 = 1; /* we didn't grab the inode */
 			}
 		}
+		ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 		ecfs_unlock_group(sb, group);
 		ino++;		/* the inode bitmap is zero-based */
+		ECFS_CRIT("ino=%ld qstr.name.name=%s ret2=%d group=%d", ino, qstr->name, ret2, group);
 		if (!ret2)
 			goto got; /* we grabbed the inode! */
+		ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 
 next_group:
 		if (++group == ngroups)
 			group = 0;
+		ECFS_CRIT("ino=%ld qstr.name.name=%s", ino, qstr->name);
 	}
 	err = -ENOSPC;
 	goto out;
@@ -1288,7 +1299,7 @@ got:
 	/* Precompute checksum seed for inode metadata */
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		__u32 csum;
-		__le64 inum = cpu_to_le64(inode->i_ino);
+		__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
 		__le32 gen = cpu_to_le32(inode->i_generation);
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));

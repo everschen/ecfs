@@ -1780,6 +1780,7 @@ static struct dentry *ecfs_lookup(struct inode *dir, struct dentry *dentry, unsi
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		if (unlikely(ino == dir->i_ino)) {
+			dump_stack();
 			ECFS_ERROR_INODE(dir, "'%pd' linked to parent dir",
 					 dentry);
 			return ERR_PTR(-EFSCORRUPTED);
@@ -2372,6 +2373,8 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 	if (ecfs_has_feature_metadata_csum(inode->i_sb))
 		csum_size = sizeof(struct ecfs_dir_entry_tail);
 
+	ECFS_CRIT("csum_size=%d", csum_size);
+
 	sb = dir->i_sb;
 	blocksize = sb->s_blocksize;
 
@@ -2382,10 +2385,12 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		return -EINVAL;
 
 	retval = ecfs_fname_setup_filename(dir, &dentry->d_name, 0, &fname);
+	ECFS_CRIT("csum_size=%d retval=%d", csum_size, retval);
 	if (retval)
 		return retval;
-
+	ECFS_CRIT("csum_size=%d", csum_size);
 	if (ecfs_has_inline_data(dir)) {
+		ECFS_CRIT("csum_size=%d", csum_size);
 		retval = ecfs_try_add_inline_entry(handle, &fname, dir, inode);
 		if (retval < 0)
 			goto out;
@@ -2395,7 +2400,9 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		}
 	}
 
+	ECFS_CRIT("csum_size=%d", csum_size);
 	if (is_dx(dir)) {
+		ECFS_CRIT("csum_size=%d", csum_size);
 		retval = ecfs_dx_add_entry(handle, &fname, dir, inode);
 		if (!retval || (retval != ERR_BAD_DX_DIR))
 			goto out;
@@ -2412,12 +2419,15 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		if (unlikely(retval))
 			goto out;
 	}
+	ECFS_CRIT("csum_size=%d", csum_size);
 	blocks = dir->i_size >> sb->s_blocksize_bits;
 	for (block = 0; block < blocks; block++) {
+		ECFS_CRIT("csum_size=%d", csum_size);
 		bh = ecfs_read_dirblock(dir, block, DIRENT);
 		if (bh == NULL) {
 			bh = ecfs_bread(handle, dir, block,
 					ECFS_GET_BLOCKS_CREATE);
+			ECFS_CRIT("csum_size=%d", csum_size);
 			goto add_to_new_block;
 		}
 		if (IS_ERR(bh)) {
@@ -2425,11 +2435,14 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 			bh = NULL;
 			goto out;
 		}
+		ECFS_CRIT("csum_size=%d", csum_size);
 		retval = add_dirent_to_buf(handle, &fname, dir, inode,
 					   NULL, bh);
+		ECFS_CRIT("csum_size=%d retval=%d", csum_size, retval);
 		if (retval != -ENOSPC)
 			goto out;
-
+		
+		ECFS_CRIT("csum_size=%d", csum_size);
 		if (blocks == 1 && !dx_fallback &&
 		    ecfs_has_feature_dir_index(sb)) {
 			retval = make_indexed_dir(handle, &fname, dir,
@@ -2439,8 +2452,10 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		}
 		brelse(bh);
 	}
+	ECFS_CRIT("csum_size=%d", csum_size);
 	bh = ecfs_append(handle, dir, &block);
 add_to_new_block:
+	ECFS_CRIT("csum_size=%d", csum_size);
 	if (IS_ERR(bh)) {
 		retval = PTR_ERR(bh);
 		bh = NULL;
@@ -2453,8 +2468,10 @@ add_to_new_block:
 	if (csum_size)
 		ecfs_initialize_dirent_tail(bh, blocksize);
 
+	ECFS_CRIT("csum_size=%d", csum_size);
 	retval = add_dirent_to_buf(handle, &fname, dir, inode, de, bh);
 out:
+	ECFS_CRIT("csum_size=%d", csum_size);
 	ecfs_fname_free_filename(&fname);
 	brelse(bh);
 	if (retval == 0)
@@ -2994,6 +3011,8 @@ static struct dentry *ecfs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
 	struct inode *inode;
 	int err, err2 = 0, credits, retries = 0;
 
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
+
 	if (ECFS_DIR_LINK_MAX(dir))
 		return ERR_PTR(-EMLINK);
 
@@ -3001,13 +3020,18 @@ static struct dentry *ecfs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
 	if (err)
 		return ERR_PTR(err);
 
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
+
 	credits = (ECFS_DATA_TRANS_BLOCKS(dir->i_sb) +
 		   ECFS_INDEX_EXTRA_TRANS_BLOCKS + 3);
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
 retry:
 	inode = ecfs_new_inode_start_handle(idmap, dir, S_IFDIR | mode,
 					    &dentry->d_name,
 					    0, NULL, ECFS_HT_DIR, credits);
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
 	handle = ecfs_journal_current_handle();
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
 	err = PTR_ERR(inode);
 	if (IS_ERR(inode))
 		goto out_stop;
@@ -3017,6 +3041,7 @@ retry:
 	err = ecfs_init_new_dir(handle, dir, inode);
 	if (err)
 		goto out_clear_inode;
+	ECFS_CRIT("dir->i_ino=%ld dentry->d_name.name=%s", dir->i_ino, dentry->d_name.name);
 	err = ecfs_mark_inode_dirty(handle, inode);
 	if (!err)
 		err = ecfs_add_entry(handle, dentry, inode);
@@ -3094,7 +3119,7 @@ bool ecfs_empty_dir(struct inode *inode)
 	de = ecfs_next_entry(de, sb->s_blocksize);
 	if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 offset) ||
-	    le64_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
+	    le32_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
 	    de->name[0] != '.' || de->name[1] != '.') {
 		ecfs_warning_inode(inode, "directory missing '..'");
 		brelse(bh);
@@ -3465,6 +3490,8 @@ retry:
 	ecfs_inc_count(inode);
 	ihold(inode);
 
+	ECFS_CRIT("dir->i_ino=%ld inode->i_ino=%ld", dir->i_ino, inode->i_ino);
+
 	err = ecfs_add_entry(handle, dentry, inode);
 	if (!err) {
 		err = ecfs_mark_inode_dirty(handle, inode);
@@ -3547,7 +3574,7 @@ static struct buffer_head *ecfs_get_first_dir_block(handle_t *handle,
 		de = ecfs_next_entry(de, inode->i_sb->s_blocksize);
 		if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data,
 					 bh->b_size, offset) ||
-		    le64_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
+		    le32_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
 		    de->name[0] != '.' || de->name[1] != '.') {
 			ECFS_ERROR_INODE(inode, "directory missing '..'");
 			brelse(bh);

@@ -4835,14 +4835,18 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 	ecfs_fsblk_t		block;
 	struct blk_plug		plug;
 	int			inodes_per_block, inode_offset;
-	struct ecfs_sb_info *sbi = ECFS_SB(sb);
+	//struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	iloc->bh = NULL;
 
 	/*be sure to match ino withs sb .*/
-	ASSERT(fid_get_node_and_disk_id(ino) != 0);
-	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
-	ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+	// ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	// ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
+	// ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
+
+	// if (fid_get_node_id(ino)==0)
+	// 	dump_stack();
+	ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
 
 	ino = fid_get_ino(ino);
 	if (ino < ECFS_ROOT_INO ||
@@ -5234,11 +5238,14 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	projid_t i_projid;
 
 	/* because node id start from 1, so the top 32 bit node id and disk id always not zero */
-	ASSERT(fid_get_node_and_disk_id(ino) != 0);
+	//ASSERT(fid_get_node_and_disk_id(ino) != 0);
 
 	/*be sure to match ino withs sb .*/
-	ASSERT(fid_get_node_id(ino) == ECFS_SB(sb)->s_node_id);
-	ASSERT(fid_get_disk_id(ino) == ECFS_SB(sb)->s_disk_id);
+	//ASSERT(fid_get_node_id(ino) == ECFS_SB(sb)->s_node_id);
+	//ASSERT(fid_get_disk_id(ino) == ECFS_SB(sb)->s_disk_id);
+	// if (fid_get_node_id(ino)==0)
+	// 	dump_stack();
+	ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
 
 	if ((!(flags & ECFS_IGET_SPECIAL) && is_special_ino(sb, ino)) ||
 	    (fid_get_ino(ino) < ECFS_ROOT_INO) ||
@@ -5297,7 +5304,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
 		__u32 csum;
-		__le64 inum = cpu_to_le64(inode->i_ino);
+		__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
 		__le32 gen = raw_inode->i_generation;
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));
