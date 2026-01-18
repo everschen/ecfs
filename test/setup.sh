@@ -5,10 +5,10 @@ MODE=${1:-ecfs}
 
 TEST_PATH=$HOME
 
-IMG=$TEST_PATH/test.img
-inode_start_block=1059
 ECFS_DIR=$TEST_PATH/linux-6.17.0/fs/ecfs
 ECFS_MKE2FS=$TEST_PATH/e2fsprogs/misc/mke2fs
+
+inode_start_block=37
 
 case "$MODE" in
     ecfs|ext4)
@@ -21,9 +21,8 @@ esac
 
 echo "===== FS TEST MODE: $MODE ====="
 
-# ---------- 清理现场 ----------
-sudo umount /mnt/ecfs 2>/dev/null || true
-sudo umount /mnt/ext4 2>/dev/null || true
+MKE2FS="mke2fs"
+
 
 # ---------- ECFS：编译 & 加载 ----------
 if [ "$MODE" = "ecfs" ]; then
@@ -33,7 +32,21 @@ if [ "$MODE" = "ecfs" ]; then
 
     echo "[ECFS] insmod"
     sudo insmod ecfs.ko
+    IMG=$TEST_PATH/test_ecfs.img
+    sudo umount /mnt/ecfs 2>/dev/null || true
+    E2FS_PATH="$TEST_PATH/e2fsprogs/misc/"
+    MNT=/mnt/ecfs
+    FSTYPE=ecfs
+    MKE2FS="$ECFS_MKE2FS"
+else
+    sudo umount /mnt/ext4 2>/dev/null || true
+    IMG=$TEST_PATH/test_ext4.img
+    E2FS_PATH=""
+    MNT=/mnt/ext4
+    FSTYPE=ext4
+    MKE2FS="mke2fs"
 fi
+
 
 # ---------- loop ----------
 LOOP=$(sudo losetup -f --show "$IMG")
@@ -42,12 +55,6 @@ echo "[LOOP] $LOOP"
 # ---------- 清历史痕迹 ----------
 sudo wipefs -a "$LOOP"
 
-# ---------- mkfs ----------
-if [ "$MODE" = "ecfs" ]; then
-    MKE2FS="$ECFS_MKE2FS"
-else
-    MKE2FS="mke2fs"
-fi
 
 echo "[MKFS] using $MKE2FS, inode_ratio=32768"
 
@@ -58,14 +65,7 @@ sudo "$MKE2FS" -F -t ext4 \
   -E lazy_itable_init=0,lazy_journal_init=0 \
   "$LOOP"
 
-# ---------- mount ----------
-if [ "$MODE" = "ecfs" ]; then
-    MNT=/mnt/ecfs
-    FSTYPE=ecfs
-else
-    MNT=/mnt/ext4
-    FSTYPE=ext4
-fi
+
 
 sudo mkdir -p "$MNT"
 echo "[MOUNT] $FSTYPE on $MNT"
@@ -78,33 +78,7 @@ if [ "$SRC" != "$LOOP" ]; then
     exit 1
 fi
 
-# ---------- 测试 ----------
-DIRNAME="di"
-echo "[TEST] mkdir $DIRNAME"
-sudo mkdir "$MNT/$DIRNAME"
-
-echo "[TEST] touch file.txt"
-sudo touch "$MNT/file.txt"
-
-echo "[TEST] ls -lia $MNT"
-ls -lia "$MNT"
-
-echo "[TEST] write & read"
-echo "Hello $MODE!" | sudo tee "$MNT/file.txt" >/dev/null
-sudo cat "$MNT/file.txt"
-
-echo "[TEST] ls -lia $MNT/$DIRNAME"
-ls -lia "$MNT/$DIRNAME"
-
-# ---------- 卸载 ----------
-echo "[UMOUNT]"
-sudo umount "$MNT"
-sudo losetup -d "$LOOP"
-
-# ---------- ECFS 卸载 ----------
-if [ "$MODE" = "ecfs" ]; then
-    echo "[ECFS] rmmod"
-    sudo rmmod ecfs
-fi
-
-echo "===== DONE: $MODE ====="
+cd $MNT
+pwd
+ls -lia
+echo "cd $MNT"
