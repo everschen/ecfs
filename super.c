@@ -262,6 +262,8 @@ __le32 ecfs_superblock_csum(struct ecfs_super_block *es)
 	int offset = offsetof(struct ecfs_super_block, s_checksum);
 	__u32 csum;
 
+	ecfs_debug("metadata_csum and uninit_bg are "
+			     "redundant flags; please run fsck. es->s_checksum=%x offset=%x", es->s_checksum, offset);
 	csum = ecfs_chksum(~0, (char *)es, offset);
 
 	return cpu_to_le32(csum);
@@ -273,6 +275,8 @@ static int ecfs_superblock_csum_verify(struct super_block *sb,
 	if (!ecfs_has_feature_metadata_csum(sb))
 		return 1;
 
+	ecfs_warning(sb, "metadata_csum and uninit_bg are "
+			     "redundant flags; please run fsck. es->s_checksum=%x ecfs_superblock_csum(es)=%x", es->s_checksum, ecfs_superblock_csum(es));
 	return es->s_checksum == ecfs_superblock_csum(es);
 }
 
@@ -4580,7 +4584,7 @@ static int ecfs_init_metadata_csum(struct super_block *sb, struct ecfs_super_blo
 	/* Check for a known checksum algorithm */
 	if (!ecfs_verify_csum_type(sb, es)) {
 		ecfs_msg(sb, KERN_ERR, "VFS: Found ecfs filesystem with "
-			 "unknown checksum algorithm.");
+			 "unknown checksum algorithm es->s_checksum_type=%d s_checksum_type=%x  s_blocks_count_hi=%x.", es->s_checksum_type, offsetof(struct ecfs_super_block, s_checksum_type), offsetof(struct ecfs_super_block, s_blocks_count_hi));
 		return -EINVAL;
 	}
 	ecfs_setup_csum_trigger(sb, ECFS_JTR_ORPHAN_FILE,

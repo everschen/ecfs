@@ -24,7 +24,7 @@ echo "===== FS TEST MODE: $MODE ====="
 MKE2FS="mke2fs"
 
 
-
+# ---------- ECFS：编译 & 加载 ----------
 if [ "$MODE" = "ecfs" ]; then
     IMG=$TEST_PATH/test_ecfs.img
     E2FS_PATH="$TEST_PATH/e2fsprogs/misc/"
@@ -40,23 +40,11 @@ else
 fi
 
 
+
 if mountpoint -q $MNT; then
     echo "$MNT already mounted"
 else
     echo "$MNT not mounted, no need to clean."
-
-    if [ "$MODE" = "ecfs" ]; then
-        if ! grep -q '^ecfs ' /proc/modules; then
-            echo "[ECFS] insmod"
-        elif lsmod | awk '$1=="ecfs" && $3==0 {found=1} END{exit !found}'; then
-            echo "ecfs loaded and refcnt = 0"
-            echo "sudo rmmod ecfs"
-            sudo rmmod ecfs
-        else
-            echo "ecfs loaded but refcnt != 0"
-        fi
-    fi
-
     exit 0
 fi
 

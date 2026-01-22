@@ -98,6 +98,9 @@ E2FS_PATH="${E2FS_PATH-/home/evers/e2fsprogs/misc/}"
 E2FS="dumpe2fs"
 
 
+alias va=viewa
+alias vb=viewb
+
 alias he='echo "$drive"; $E2FS_PATH$E2FS -h "$drive"'
 
 # 查看文件系统组信息（group descriptor 信息）

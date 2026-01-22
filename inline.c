@@ -16,7 +16,7 @@
 #include "truncate.h"
 
 #define ECFS_XATTR_SYSTEM_DATA	"data"
-#define ECFS_MIN_INLINE_DATA_SIZE	((sizeof(__le32) * ECFS_N_BLOCKS))
+#define ECFS_MIN_INLINE_DATA_SIZE	((sizeof(__le64) * ECFS_N_BLOCKS))
 #define ECFS_INLINE_DOTDOT_OFFSET	2
 #define ECFS_INLINE_DOTDOT_SIZE		4
 

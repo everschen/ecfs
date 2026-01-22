@@ -67,7 +67,8 @@
 /*
  * Define ECFSFS_DEBUG to produce debug messages
  */
-#undef ECFSFS_DEBUG
+//#undef ECFSFS_DEBUG
+#define ECFSFS_DEBUG
 
 #ifdef ECFSFS_DEBUG
 #define ecfs_debug(f, a...)						\
@@ -854,7 +855,7 @@ struct ecfs_inode {
 			__u32  m_i_reserved1;
 		} masix1;
 	} osd1;				/* OS dependent 1 */
-	__le32	i_block[ECFS_N_BLOCKS];/* Pointers to blocks */
+	__le64	i_block[ECFS_N_BLOCKS];/* Pointers to blocks */
 	__le32	i_generation;	/* File version (for NFS) */
 	__le32	i_file_acl_lo;	/* File ACL */
 	__le32	i_size_high;
@@ -1432,18 +1433,18 @@ struct ecfs_super_block {
 /*100*/	__le32	s_default_mount_opts;
 	__le32	s_first_meta_bg;	/* First metablock block group */
 	__le32	s_mkfs_time;		/* When the filesystem was created */
-	__le32	s_jnl_blocks[17];	/* Backup of the journal inode */
+	__le64	s_jnl_blocks[17];	/* Backup of the journal inode */
 	/* 64bit support valid if ECFS_FEATURE_INCOMPAT_64BIT */
 /*150*/	__le32	s_blocks_count_hi;	/* Blocks count */
 	__le32	s_r_blocks_count_hi;	/* Reserved blocks count */
 	__le32	s_free_blocks_count_hi;	/* Free blocks count */
 	__le16	s_min_extra_isize;	/* All inodes have at least # bytes */
 	__le16	s_want_extra_isize; 	/* New inodes should reserve # bytes */
-	__le32	s_flags;		/* Miscellaneous flags */
+/*160*/	__le32	s_flags;		/* Miscellaneous flags */
 	__le16  s_raid_stride;		/* RAID stride */
 	__le16  s_mmp_update_interval;  /* # seconds to wait in MMP checking */
 	__le64  s_mmp_block;            /* Block for multi-mount protection */
-	__le32  s_raid_stripe_width;    /* blocks on all data disks (N*stride)*/
+/*170*/	__le32  s_raid_stripe_width;    /* blocks on all data disks (N*stride)*/
 	__u8	s_log_groups_per_flex;  /* FLEX_BG group size */
 	__u8	s_checksum_type;	/* metadata checksum algorithm used */
 	__u8	s_encryption_level;	/* versioning level for encryption */
@@ -1491,7 +1492,7 @@ struct ecfs_super_block {
 	__le32  s_orphan_file_inum;	/* Inode for tracking orphan inodes */
 	__le16  s_node_id;	/* node id, start from 1 */
 	__le16  s_disk_id;	/* disk id, start form 0 */
-	__le32	s_reserved[93];		/* Padding to the end of the block */
+	__le32	s_reserved[75];		/* Padding to the end of the block */
 	__le32	s_checksum;		/* crc32c(superblock) */
 };
 

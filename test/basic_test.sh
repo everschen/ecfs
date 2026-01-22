@@ -31,8 +31,21 @@ if [ "$MODE" = "ecfs" ]; then
     cd "$ECFS_DIR"
     make -j6
 
+    if ! grep -q '^ecfs ' /proc/modules; then
+        echo "[ECFS] insmod"
+        sudo insmod ecfs.ko
+    elif lsmod | awk '$1=="ecfs" && $3==0 {found=1} END{exit !found}'; then
+        echo "ecfs loaded and refcnt = 0"
+        sudo rmmod ecfs
+        sudo insmod ecfs.ko
+    else
+        echo "ecfs loaded but refcnt != 0"
+        sudo rmmod ecfs
+        sudo insmod ecfs.ko
+    fi
+
     echo "[ECFS] insmod"
-    sudo insmod ecfs.ko
+    
 fi
 
 # ---------- loop ----------
@@ -92,6 +105,10 @@ ls -lia "$MNT"
 echo "[TEST] write & read"
 echo "Hello $MODE!" | sudo tee "$MNT/file.txt" >/dev/null
 sudo cat "$MNT/file.txt"
+
+echo "[TEST] write & read $MNT/$DIRNAME"
+echo "Hello $MODE!" | sudo tee "$MNT/$DIRNAME/file2.txt" >/dev/null
+sudo cat "$MNT/$DIRNAME/file2.txt"
 
 echo "[TEST] ls -lia $MNT/$DIRNAME"
 ls -lia "$MNT/$DIRNAME"

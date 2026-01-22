@@ -95,6 +95,7 @@ static int ecfs_inode_csum_verify(struct inode *inode, struct ecfs_inode *raw,
 	    !ecfs_has_feature_metadata_csum(inode->i_sb))
 		return 1;
 
+	ecfs_debug("inode->i_ino=%lld raw->i_checksum_lo=%x raw->i_checksum_hi=%x ei->i_csum_seed=%x", inode->i_ino, raw->i_checksum_lo, raw->i_checksum_hi, ei->i_csum_seed);
 	provided = le16_to_cpu(raw->i_checksum_lo);
 	calculated = ecfs_inode_csum(inode, raw, ei);
 	if (ECFS_INODE_SIZE(inode->i_sb) > ECFS_GOOD_OLD_INODE_SIZE &&
@@ -103,6 +104,7 @@ static int ecfs_inode_csum_verify(struct inode *inode, struct ecfs_inode *raw,
 	else
 		calculated &= 0xFFFF;
 
+	ecfs_debug("inode->i_ino=%lld raw->i_checksum_lo=%x raw->i_checksum_hi=%x ei->i_csum_seed=%x provided=%x calculated=%x", inode->i_ino, raw->i_checksum_lo, raw->i_checksum_hi, ei->i_csum_seed, provided, calculated);
 	return provided == calculated;
 }
 
@@ -156,7 +158,7 @@ int ecfs_inode_is_fast_symlink(struct inode *inode)
 		return (S_ISLNK(inode->i_mode) && inode->i_blocks - ea_blocks == 0);
 	}
 	return S_ISLNK(inode->i_mode) && inode->i_size &&
-	       (inode->i_size < ECFS_N_BLOCKS * 4);
+	       (inode->i_size < ECFS_N_BLOCKS * (sizeof(__le64)));
 }
 
 /*
@@ -4853,7 +4855,7 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 	    ino > le32_to_cpu(ECFS_SB(sb)->s_es->s_inodes_count))
 		return -EFSCORRUPTED;
 
-	iloc->block_group = (ino - 1) / ECFS_INODES_PER_GROUP(sb);
+	iloc->block_group = (fid_get_ino(ino) - 1) / ECFS_INODES_PER_GROUP(sb);
 	gdp = ecfs_get_group_desc(sb, iloc->block_group, NULL);
 	if (!gdp)
 		return -EIO;
@@ -4862,9 +4864,10 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 	 * Figure out the offset within the block group inode table
 	 */
 	inodes_per_block = ECFS_SB(sb)->s_inodes_per_block;
-	inode_offset = ((ino - 1) %
+	inode_offset = ((fid_get_ino(ino) - 1) %
 			ECFS_INODES_PER_GROUP(sb));
 	iloc->offset = (inode_offset % inodes_per_block) * ECFS_INODE_SIZE(sb);
+	ecfs_debug("fid:%d-%d-%d inode_offset= %d iloc->offset=%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino), inode_offset, iloc->offset);
 
 	block = ecfs_inode_table(sb, gdp);
 	if ((block <= le32_to_cpu(ECFS_SB(sb)->s_es->s_first_data_block)) ||
@@ -5277,6 +5280,16 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	if (ret < 0)
 		goto bad_inode;
 	raw_inode = ecfs_raw_inode(&iloc);
+	ecfs_debug("inode->i_ino=%lld raw_inode=%x", inode->i_ino, raw_inode);
+
+
+	print_hex_dump(KERN_INFO,
+				"dump: ",
+				DUMP_PREFIX_OFFSET,
+				16, 1,
+				raw_inode,
+				256,
+				false);
 
 	if ((flags & ECFS_IGET_HANDLE) &&
 	    (raw_inode->i_links_count == 0) && (raw_inode->i_mode == 0)) {
@@ -5311,6 +5324,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 		ei->i_csum_seed = ecfs_chksum(csum, (__u8 *)&gen, sizeof(gen));
 	}
 
+	ecfs_debug("inode->i_ino=%lld ei->i_csum_seed=%x", inode->i_ino, ei->i_csum_seed);
 	if ((!ecfs_inode_csum_verify(inode, raw_inode, ei) ||
 	    ecfs_simulate_fail(sb, ECFS_SIM_INODE_CRC)) &&
 	     (!(ECFS_SB(sb)->s_mount_state & ECFS_FC_REPLAY))) {

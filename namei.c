@@ -3427,14 +3427,14 @@ retry:
 			goto err_drop_inode;
 		inode->i_op = &ecfs_encrypted_symlink_inode_operations;
 	} else {
-		if ((disk_link.len > ECFS_N_BLOCKS * 4)) {
+		if ((disk_link.len > ECFS_N_BLOCKS * (sizeof(__le64)))) {
 			inode->i_op = &ecfs_symlink_inode_operations;
 		} else {
 			inode->i_op = &ecfs_fast_symlink_inode_operations;
 		}
 	}
 
-	if ((disk_link.len > ECFS_N_BLOCKS * 4)) {
+	if ((disk_link.len > ECFS_N_BLOCKS * (sizeof(__le64)))) {
 		/* alloc symlink block and fill it */
 		err = ecfs_init_symlink_block(handle, inode, &disk_link);
 		if (err)
