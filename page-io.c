@@ -220,7 +220,6 @@ static void dump_completed_IO(struct inode *inode, struct list_head *head)
 	if (list_empty(head))
 		return;
 
-	ecfs_debug("Dump inode %lu completed io list\n", inode->i_ino);
 	list_for_each_entry(io_end, head, list) {
 		cur = &io_end->list;
 		before = cur->prev;

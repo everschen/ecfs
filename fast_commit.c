@@ -911,7 +911,7 @@ static int ecfs_fc_write_inode_data(struct inode *inode, u32 *crc)
 	spin_unlock(&ei->i_fc_lock);
 
 	cur_lblk_off = old_blk_size;
-	ecfs_debug("will try writing %d to %d for inode %ld\n",
+	ecfs_debug("will try writing %lld to %lld for inode %ld\n",
 		   cur_lblk_off, new_blk_size, inode->i_ino);
 
 	while (cur_lblk_off <= new_blk_size) {
@@ -1787,7 +1787,7 @@ static int ecfs_fc_replay_add_range(struct super_block *sb,
 
 	cur = start;
 	remaining = len;
-	ecfs_debug("ADD_RANGE, lblk %d, pblk %lld, len %d, unwritten %d, inode %ld\n",
+	ecfs_debug("ADD_RANGE, lblk %lld, pblk %lld, len %d, unwritten %d, inode %ld\n",
 		  start, start_pblk, len, ecfs_ext_is_unwritten(ex),
 		  inode->i_ino);
 

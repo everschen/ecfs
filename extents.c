@@ -759,7 +759,7 @@ ecfs_ext_binsearch_idx(struct inode *inode,
 	struct ecfs_extent_idx *r, *l, *m;
 
 
-	ext_debug(inode, "binsearch for %u(idx):  ", block);
+	ext_debug(inode, "binsearch for %llu(idx):  ", block);
 
 	l = EXT_FIRST_INDEX(eh) + 1;
 	r = EXT_LAST_INDEX(eh);
@@ -827,7 +827,7 @@ ecfs_ext_binsearch(struct inode *inode,
 		return;
 	}
 
-	ext_debug(inode, "binsearch for %u:  ", block);
+	ext_debug(inode, "binsearch for %llu:  ", block);
 
 	l = EXT_FIRST_EXTENT(eh) + 1;
 	r = EXT_LAST_EXTENT(eh);
@@ -1473,7 +1473,7 @@ static int ecfs_ext_search_left(struct inode *inode,
 	int depth, ee_len;
 
 	if (unlikely(path == NULL)) {
-		ECFS_ERROR_INODE(inode, "path == NULL *logical %d!", *logical);
+		ECFS_ERROR_INODE(inode, "path == NULL *logical %lld!", *logical);
 		return -EFSCORRUPTED;
 	}
 	depth = path->p_depth;
@@ -1491,7 +1491,7 @@ static int ecfs_ext_search_left(struct inode *inode,
 	if (*logical < le32_to_cpu(ex->ee_block)) {
 		if (unlikely(EXT_FIRST_EXTENT(path[depth].p_hdr) != ex)) {
 			ECFS_ERROR_INODE(inode,
-					 "EXT_FIRST_EXTENT != ex *logical %d ee_block %d!",
+					 "EXT_FIRST_EXTENT != ex *logical %lld ee_block %d!",
 					 *logical, le32_to_cpu(ex->ee_block));
 			return -EFSCORRUPTED;
 		}
@@ -1511,7 +1511,7 @@ static int ecfs_ext_search_left(struct inode *inode,
 
 	if (unlikely(*logical < (le32_to_cpu(ex->ee_block) + ee_len))) {
 		ECFS_ERROR_INODE(inode,
-				 "logical %d < ee_block %d + ee_len %d!",
+				 "logical %lld < ee_block %d + ee_len %d!",
 				 *logical, le32_to_cpu(ex->ee_block), ee_len);
 		return -EFSCORRUPTED;
 	}
@@ -1541,7 +1541,7 @@ static int ecfs_ext_search_right(struct inode *inode,
 	int ee_len;
 
 	if (unlikely(path == NULL)) {
-		ECFS_ERROR_INODE(inode, "path == NULL *logical %d!", *logical);
+		ECFS_ERROR_INODE(inode, "path == NULL *logical %lld!", *logical);
 		return -EFSCORRUPTED;
 	}
 	depth = path->p_depth;
@@ -1567,7 +1567,7 @@ static int ecfs_ext_search_right(struct inode *inode,
 			ix = path[depth].p_idx;
 			if (unlikely(ix != EXT_FIRST_INDEX(path[depth].p_hdr))) {
 				ECFS_ERROR_INODE(inode,
-						 "ix != EXT_FIRST_INDEX *logical %d!",
+						 "ix != EXT_FIRST_INDEX *logical %lld!",
 						 *logical);
 				return -EFSCORRUPTED;
 			}
@@ -1577,7 +1577,7 @@ static int ecfs_ext_search_right(struct inode *inode,
 
 	if (unlikely(*logical < (le32_to_cpu(ex->ee_block) + ee_len))) {
 		ECFS_ERROR_INODE(inode,
-				 "logical %d < ee_block %d + ee_len %d!",
+				 "logical %lld < ee_block %d + ee_len %d!",
 				 *logical, le32_to_cpu(ex->ee_block), ee_len);
 		return -EFSCORRUPTED;
 	}
@@ -2088,7 +2088,7 @@ prepend:
 	if (next != EXT_MAX_BLOCKS) {
 		struct ecfs_ext_path *npath;
 
-		ext_debug(inode, "next leaf block - %u\n", next);
+		ext_debug(inode, "next leaf block - %llu\n", next);
 		npath = ecfs_find_extent(inode, next, NULL, gb_flags);
 		if (IS_ERR(npath)) {
 			err = PTR_ERR(npath);
@@ -2472,7 +2472,7 @@ static int ecfs_remove_blocks(handle_t *handle, struct inode *inode,
 	if (from < le32_to_cpu(ex->ee_block) ||
 	    to != le32_to_cpu(ex->ee_block) + ee_len - 1) {
 		ecfs_error(sbi->s_sb,
-			   "strange request: removal(2) %u-%u from %u:%u",
+			   "strange request: removal(2) %llu-%llu from %u:%u",
 			   from, to, le32_to_cpu(ex->ee_block), ee_len);
 		return 0;
 	}
@@ -2611,7 +2611,7 @@ ecfs_ext_rm_leaf(handle_t *handle, struct inode *inode,
 	ecfs_fsblk_t pblk;
 
 	/* the header must be checked already in ecfs_ext_remove_space() */
-	ext_debug(inode, "truncate since %u in leaf to %u\n", start, end);
+	ext_debug(inode, "truncate since %llu in leaf to %llu\n", start, end);
 	if (!path[depth].p_hdr)
 		path[depth].p_hdr = ext_block_hdr(path[depth].p_bh);
 	eh = path[depth].p_hdr;
@@ -2637,14 +2637,14 @@ ecfs_ext_rm_leaf(handle_t *handle, struct inode *inode,
 		else
 			unwritten = 0;
 
-		ext_debug(inode, "remove ext %u:[%d]%d\n", ex_ee_block,
+		ext_debug(inode, "remove ext %llu:[%d]%d\n", ex_ee_block,
 			  unwritten, ex_ee_len);
 		path[depth].p_ext = ex;
 
 		a = max(ex_ee_block, start);
 		b = min(ex_ee_block + ex_ee_len - 1, end);
 
-		ext_debug(inode, "  border %u:%u\n", a, b);
+		ext_debug(inode, "  border %llu:%llu\n", a, b);
 
 		/* If this extent is beyond the end of the hole, skip it */
 		if (end < ex_ee_block) {
@@ -2666,8 +2666,8 @@ ecfs_ext_rm_leaf(handle_t *handle, struct inode *inode,
 			continue;
 		} else if (b != ex_ee_block + ex_ee_len - 1) {
 			ECFS_ERROR_INODE(inode,
-					 "can not handle truncate %u:%u "
-					 "on extent %u:%u",
+					 "can not handle truncate %llu:%llu "
+					 "on extent %llu:%llu",
 					 start, end, ex_ee_block,
 					 ex_ee_block + ex_ee_len - 1);
 			err = -EFSCORRUPTED;
@@ -2753,7 +2753,7 @@ ecfs_ext_rm_leaf(handle_t *handle, struct inode *inode,
 		if (err)
 			goto out;
 
-		ext_debug(inode, "new extent: %u:%u:%llu\n", ex_ee_block, num,
+		ext_debug(inode, "new extent: %llu:%u:%llu\n", ex_ee_block, num,
 				ecfs_ext_pblock(ex));
 		ex--;
 		ex_ee_block = le32_to_cpu(ex->ee_block);
@@ -2831,7 +2831,7 @@ int ecfs_ext_remove_space(struct inode *inode, ecfs_lblk_t start,
 	partial.lblk = 0;
 	partial.state = initial;
 
-	ext_debug(inode, "truncate since %u to %u\n", start, end);
+	ext_debug(inode, "truncate since %llu to %llu\n", start, end);
 
 	/* probably first extent we're gonna free will be last in block */
 	handle = ecfs_journal_start_with_revoke(inode, ECFS_HT_TRUNCATE,
@@ -3270,7 +3270,7 @@ static struct ecfs_ext_path *ecfs_split_extent_at(handle_t *handle,
 	 */
 	path = ecfs_find_extent(inode, ee_block, NULL, flags | ECFS_EX_NOFAIL);
 	if (IS_ERR(path)) {
-		ECFS_ERROR_INODE(inode, "Failed split extent on %u, err %ld",
+		ECFS_ERROR_INODE(inode, "Failed split extent on %llu, err %ld",
 				 split, PTR_ERR(path));
 		return path;
 	}
@@ -4159,7 +4159,7 @@ again:
 
 insert_hole:
 	/* Put just found gap into cache to speed up subsequent requests */
-	ext_debug(inode, " -> %u:%u\n", hole_start, len);
+	ext_debug(inode, " -> %llu:%llu\n", hole_start, len);
 	ecfs_es_insert_extent(inode, hole_start, len, ~0,
 			      EXTENT_STATUS_HOLE, false);
 
@@ -4201,7 +4201,7 @@ int ecfs_ext_map_blocks(handle_t *handle, struct inode *inode,
 	struct ecfs_allocation_request ar;
 	ecfs_lblk_t cluster_offset;
 
-	ext_debug(inode, "blocks %u/%u requested\n", map->m_lblk, map->m_len);
+	ext_debug(inode, "blocks %llu/%u requested\n", map->m_lblk, map->m_len);
 	trace_ecfs_ext_map_blocks_enter(inode, map->m_lblk, map->m_len, flags);
 
 	/* find extent for this block */
@@ -4247,7 +4247,7 @@ int ecfs_ext_map_blocks(handle_t *handle, struct inode *inode,
 			newblock = map->m_lblk - ee_block + ee_start;
 			/* number of remaining blocks in the extent */
 			allocated = ee_len - (map->m_lblk - ee_block);
-			ext_debug(inode, "%u fit into %u:%d -> %llu\n",
+			ext_debug(inode, "%llu fit into %llu:%d -> %llu\n",
 				  map->m_lblk, ee_block, ee_len, newblock);
 
 			/*
@@ -4550,7 +4550,7 @@ retry:
 		}
 		ret = ecfs_map_blocks(handle, inode, &map, flags);
 		if (ret <= 0) {
-			ecfs_debug("inode #%lu: block %u: len %u: "
+			ecfs_debug("inode #%lu: block %llu: len %u: "
 				   "ecfs_ext_map_blocks returned %d",
 				   inode->i_ino, map.m_lblk,
 				   map.m_len, ret);
@@ -4902,7 +4902,7 @@ int ecfs_convert_unwritten_extents_atomic(handle_t *handle, struct inode *inode,
 		ret = ecfs_map_blocks(handle, inode, &map, flags);
 		if (ret != max_blocks)
 			ecfs_msg(inode->i_sb, KERN_INFO,
-				     "inode #%lu: block %u: len %u: "
+				     "inode #%lu: block %llu: len %u: "
 				     "split block mapping found for atomic write, "
 				     "ret = %d",
 				     inode->i_ino, map.m_lblk,
@@ -4921,7 +4921,7 @@ int ecfs_convert_unwritten_extents_atomic(handle_t *handle, struct inode *inode,
 
 	if (ret <= 0 || ret2)
 		ecfs_warning(inode->i_sb,
-			     "inode #%lu: block %u: len %u: "
+			     "inode #%lu: block %llu: len %u: "
 			     "returned %d or %d",
 			     inode->i_ino, map.m_lblk,
 			     map.m_len, ret, ret2);
@@ -4978,7 +4978,7 @@ int ecfs_convert_unwritten_extents(handle_t *handle, struct inode *inode,
 				      ECFS_EX_NOCACHE);
 		if (ret <= 0)
 			ecfs_warning(inode->i_sb,
-				     "inode #%lu: block %u: len %u: "
+				     "inode #%lu: block %llu: len %u: "
 				     "ecfs_ext_map_blocks returned %d",
 				     inode->i_ino, map.m_lblk,
 				     map.m_len, ret);

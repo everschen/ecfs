@@ -531,7 +531,7 @@ static struct ecfs_orphan_block_tail *ecfs_orphan_block_tail(
 static int ecfs_orphan_file_block_csum_verify(struct super_block *sb,
 					      struct buffer_head *bh)
 {
-	__u32 calculated;
+	__u32 crc2, crc3;
 	int inodes_per_ob = ecfs_inodes_per_orphan_block(sb);
 	struct ecfs_orphan_info *oi = &ECFS_SB(sb)->s_orphan_info;
 	struct ecfs_orphan_block_tail *ot;
@@ -541,11 +541,12 @@ static int ecfs_orphan_file_block_csum_verify(struct super_block *sb,
 		return 1;
 
 	ot = ecfs_orphan_block_tail(sb, bh);
-	calculated = ecfs_chksum(oi->of_csum_seed, (__u8 *)&dsk_block_nr,
+	crc2 = ecfs_chksum(oi->of_csum_seed, (__u8 *)&dsk_block_nr,
 				 sizeof(dsk_block_nr));
-	calculated = ecfs_chksum(calculated, (__u8 *)bh->b_data,
+	crc3 = ecfs_chksum(crc2, (__u8 *)bh->b_data,
 				 inodes_per_ob * sizeof(__u32));
-	return le32_to_cpu(ot->ob_checksum) == calculated;
+	//ecfs_debug("oi->of_csum_seed=%x crc2=%x crc3=%x ob_checksum=%x", oi->of_csum_seed, crc2, crc3, ot->ob_checksum);
+	return le32_to_cpu(ot->ob_checksum) == crc3;
 }
 
 /* This gets called only when checksumming is enabled */
@@ -554,17 +555,18 @@ void ecfs_orphan_file_block_trigger(struct jbd2_buffer_trigger_type *triggers,
 				    void *data, size_t size)
 {
 	struct super_block *sb = ECFS_TRIGGER(triggers)->sb;
-	__u32 csum;
+	__u32 crc2, crc3;
 	int inodes_per_ob = ecfs_inodes_per_orphan_block(sb);
 	struct ecfs_orphan_info *oi = &ECFS_SB(sb)->s_orphan_info;
 	struct ecfs_orphan_block_tail *ot;
 	__le64 dsk_block_nr = cpu_to_le64(bh->b_blocknr);
 
-	csum = ecfs_chksum(oi->of_csum_seed, (__u8 *)&dsk_block_nr,
-			   sizeof(dsk_block_nr));
-	csum = ecfs_chksum(csum, (__u8 *)data, inodes_per_ob * sizeof(__u32));
+	crc2 = ecfs_chksum(oi->of_csum_seed, (__u8 *)&dsk_block_nr,
+			   sizeof(dsk_block_nr));   
+	crc3 = ecfs_chksum(crc2, (__u8 *)data, inodes_per_ob * sizeof(__u32));
 	ot = ecfs_orphan_block_tail(sb, bh);
-	ot->ob_checksum = cpu_to_le32(csum);
+	ot->ob_checksum = cpu_to_le32(crc3);
+	//ecfs_debug("oi->of_csum_seed=%x crc2=%x crc3=%x ob_checksum=%x", oi->of_csum_seed, crc2, crc3, ot->ob_checksum);	
 }
 
 int ecfs_init_orphan_info(struct super_block *sb)

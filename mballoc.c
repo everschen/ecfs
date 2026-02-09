@@ -2102,7 +2102,7 @@ static int mb_find_extent(struct ecfs_buddy *e4b, int block,
 		WARN_ON(1);
 		ecfs_grp_locked_error(e4b->bd_sb, e4b->bd_group, 0, 0,
 			"corruption or bug in mb_find_extent "
-			"block=%d, order=%d needed=%d ex=%u/%d/%d@%u",
+			"block=%d, order=%d needed=%d ex=%u/%d/%d@%llu",
 			block, order, needed, ex->fe_group, ex->fe_start,
 			ex->fe_len, ex->fe_logical);
 		ex->fe_len = 0;
@@ -4653,7 +4653,7 @@ ecfs_mb_normalize_request(struct ecfs_allocation_context *ac,
 		ac->ac_flags |= ECFS_MB_HINT_TRY_GOAL;
 	}
 
-	mb_debug(ac->ac_sb, "goal: %lld(was %lld) blocks at %u\n", size,
+	mb_debug(ac->ac_sb, "goal: %lld(was %lld) blocks at %llu\n", size,
 		 orig_size, start);
 }
 
@@ -4780,7 +4780,7 @@ static void ecfs_mb_use_group_pa(struct ecfs_allocation_context *ac,
 	 * in on-disk bitmap -- see ecfs_mb_release_context()
 	 * Other CPUs are prevented from allocating from this pa by lg_mutex
 	 */
-	mb_debug(ac->ac_sb, "use %u/%u from group pa %p\n",
+	mb_debug(ac->ac_sb, "use %llu/%u from group pa %p\n",
 		 pa->pa_lstart, len, pa);
 }
 
@@ -5097,7 +5097,7 @@ static void ecfs_mb_mark_pa_deleted(struct super_block *sb,
 	struct ecfs_inode_info *ei;
 
 	if (pa->pa_deleted) {
-		ecfs_warning(sb, "deleted pa, type:%d, pblk:%llu, lblk:%u, len:%d\n",
+		ecfs_warning(sb, "deleted pa, type:%d, pblk:%llu, lblk:%llu, len:%d\n",
 			     pa->pa_type, pa->pa_pstart, pa->pa_lstart,
 			     pa->pa_len);
 		return;
@@ -5296,7 +5296,7 @@ adjust_bex:
 	pa->pa_deleted = 0;
 	pa->pa_type = MB_INODE_PA;
 
-	mb_debug(sb, "new inode pa %p: %llu/%d for %u\n", pa, pa->pa_pstart,
+	mb_debug(sb, "new inode pa %p: %llu/%d for %llu\n", pa, pa->pa_pstart,
 		 pa->pa_len, pa->pa_lstart);
 	trace_ecfs_mb_new_inode_pa(ac, pa);
 
@@ -5348,7 +5348,7 @@ ecfs_mb_new_group_pa(struct ecfs_allocation_context *ac)
 	pa->pa_deleted = 0;
 	pa->pa_type = MB_GROUP_PA;
 
-	mb_debug(sb, "new group pa %p: %llu/%d for %u\n", pa, pa->pa_pstart,
+	mb_debug(sb, "new group pa %p: %llu/%d for %llu\n", pa, pa->pa_pstart,
 		 pa->pa_len, pa->pa_lstart);
 	trace_ecfs_mb_new_group_pa(ac, pa);
 

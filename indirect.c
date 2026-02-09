@@ -29,12 +29,12 @@
 #include <trace/events/ecfs.h>
 
 typedef struct {
-	__le32	*p;
-	__le32	key;
+	__le64	*p;
+	__le64	key;
 	struct buffer_head *bh;
 } Indirect;
 
-static inline void add_chain(Indirect *p, struct buffer_head *bh, __le32 *v)
+static inline void add_chain(Indirect *p, struct buffer_head *bh, __le64 *v)
 {
 	p->key = *(p->p = v);
 	p->bh = bh;
@@ -102,7 +102,7 @@ static int ecfs_block_to_path(struct inode *inode,
 		offsets[n++] = i_block & (ptrs - 1);
 		final = ptrs;
 	} else {
-		ecfs_warning(inode->i_sb, "block %lu > max in inode %lu",
+		ecfs_warning(inode->i_sb, "block %llu > max in inode %lu",
 			     i_block + direct_blocks +
 			     indirect_blocks + double_blocks, inode->i_ino);
 	}
@@ -181,7 +181,7 @@ static Indirect *ecfs_get_branch(struct inode *inode, int depth,
 			}
 		}
 
-		add_chain(++p, bh, (__le32 *)bh->b_data + *++offsets);
+		add_chain(++p, bh, (__le64 *)bh->b_data + *++offsets);
 		/* Reader: end */
 		if (!p->key)
 			goto no_block;
@@ -217,13 +217,13 @@ no_block:
 static ecfs_fsblk_t ecfs_find_near(struct inode *inode, Indirect *ind)
 {
 	struct ecfs_inode_info *ei = ECFS_I(inode);
-	__le32 *start = ind->bh ? (__le32 *) ind->bh->b_data : ei->i_data;
-	__le32 *p;
+	__le64 *start = ind->bh ? (__le64 *) ind->bh->b_data : ei->i_data;
+	__le64 *p;
 
 	/* Try to find previous block */
 	for (p = ind->p - 1; p >= start; p--) {
 		if (*p)
-			return le32_to_cpu(*p);
+			return le64_to_cpu(*p);
 	}
 
 	/* No such thing, so let's try location of indirect block */
@@ -332,7 +332,7 @@ static int ecfs_alloc_branch(handle_t *handle,
 {
 	struct buffer_head *		bh;
 	ecfs_fsblk_t			b, new_blocks[4];
-	__le32				*p;
+	__le64				*p;
 	int				i, j, err, len = 1;
 
 	for (i = 0; i <= indirect_blks; i++) {
@@ -369,7 +369,7 @@ static int ecfs_alloc_branch(handle_t *handle,
 		}
 
 		memset(bh->b_data, 0, bh->b_size);
-		p = branch[i].p = (__le32 *) bh->b_data + offsets[i];
+		p = branch[i].p = (__le64 *) bh->b_data + offsets[i];
 		b = new_blocks[i];
 
 		if (i == indirect_blks)
@@ -751,7 +751,7 @@ static int ecfs_ind_truncate_ensure_credits(handle_t *handle,
  * or memcmp with zero_page, whatever is better for particular architecture.
  * Linus?
  */
-static inline int all_zeroes(__le32 *p, __le32 *q)
+static inline int all_zeroes(__le64 *p, __le64 *q)
 {
 	while (p < q)
 		if (*p++)
@@ -796,7 +796,7 @@ static inline int all_zeroes(__le32 *p, __le32 *q)
 
 static Indirect *ecfs_find_shared(struct inode *inode, int depth,
 				  ecfs_lblk_t offsets[4], Indirect chain[4],
-				  __le32 *top)
+				  __le64 *top)
 {
 	Indirect *partial, *p;
 	int k, err;
@@ -816,7 +816,7 @@ static Indirect *ecfs_find_shared(struct inode *inode, int depth,
 	if (!partial->key && *partial->p)
 		/* Writer: end */
 		goto no_top;
-	for (p = partial; (p > chain) && all_zeroes((__le32 *) p->bh->b_data, p->p); p--)
+	for (p = partial; (p > chain) && all_zeroes((__le64 *) p->bh->b_data, p->p); p--)
 		;
 	/*
 	 * OK, we've found the last block that must survive. The rest of our
@@ -857,10 +857,10 @@ no_top:
 static int ecfs_clear_blocks(handle_t *handle, struct inode *inode,
 			     struct buffer_head *bh,
 			     ecfs_fsblk_t block_to_free,
-			     unsigned long count, __le32 *first,
-			     __le32 *last)
+			     unsigned long count, __le64 *first,
+			     __le64 *last)
 {
-	__le32 *p;
+	__le64 *p;
 	int	flags = ECFS_FREE_BLOCKS_VALIDATED;
 	int	err;
 
@@ -913,15 +913,15 @@ out_err:
  */
 static void ecfs_free_data(handle_t *handle, struct inode *inode,
 			   struct buffer_head *this_bh,
-			   __le32 *first, __le32 *last)
+			   __le64 *first, __le64 *last)
 {
 	ecfs_fsblk_t block_to_free = 0;    /* Starting block # of a run */
 	unsigned long count = 0;	    /* Number of blocks in the run */
-	__le32 *block_to_free_p = NULL;	    /* Pointer into inode/ind
+	__le64 *block_to_free_p = NULL;	    /* Pointer into inode/ind
 					       corresponding to
 					       block_to_free */
 	ecfs_fsblk_t nr;		    /* Current block # */
-	__le32 *p;			    /* Pointer into inode/ind
+	__le64 *p;			    /* Pointer into inode/ind
 					       for current block */
 	int err = 0;
 
@@ -999,10 +999,10 @@ static void ecfs_free_data(handle_t *handle, struct inode *inode,
  */
 static void ecfs_free_branches(handle_t *handle, struct inode *inode,
 			       struct buffer_head *parent_bh,
-			       __le32 *first, __le32 *last, int depth)
+			       __le64 *first, __le64 *last, int depth)
 {
 	ecfs_fsblk_t nr;
-	__le32 *p;
+	__le64 *p;
 
 	if (ecfs_handle_is_aborted(handle))
 		return;
@@ -1040,8 +1040,8 @@ static void ecfs_free_branches(handle_t *handle, struct inode *inode,
 			/* This zaps the entire block.  Bottom up. */
 			BUFFER_TRACE(bh, "free child branches");
 			ecfs_free_branches(handle, inode, bh,
-					(__le32 *) bh->b_data,
-					(__le32 *) bh->b_data + addr_per_block,
+					(__le64 *) bh->b_data,
+					(__le64 *) bh->b_data + addr_per_block,
 					depth);
 			brelse(bh);
 
@@ -1112,12 +1112,12 @@ static void ecfs_free_branches(handle_t *handle, struct inode *inode,
 void ecfs_ind_truncate(handle_t *handle, struct inode *inode)
 {
 	struct ecfs_inode_info *ei = ECFS_I(inode);
-	__le32 *i_data = ei->i_data;
+	__le64 *i_data = ei->i_data;
 	int addr_per_block = ECFS_ADDR_PER_BLOCK(inode->i_sb);
 	ecfs_lblk_t offsets[4];
 	Indirect chain[4];
 	Indirect *partial;
-	__le32 nr = 0;
+	__le64 nr = 0;
 	int n = 0;
 	ecfs_lblk_t last_block, max_block;
 	unsigned blocksize = inode->i_sb->s_blocksize;
@@ -1179,7 +1179,7 @@ void ecfs_ind_truncate(handle_t *handle, struct inode *inode)
 	/* Clear the ends of indirect blocks on the shared branch */
 	while (partial > chain) {
 		ecfs_free_branches(handle, inode, partial->bh, partial->p + 1,
-				   (__le32*)partial->bh->b_data+addr_per_block,
+				   (__le64*)partial->bh->b_data+addr_per_block,
 				   (chain+n-1) - partial);
 		BUFFER_TRACE(partial->bh, "call brelse");
 		brelse(partial->bh);
@@ -1228,14 +1228,14 @@ int ecfs_ind_remove_space(handle_t *handle, struct inode *inode,
 			  ecfs_lblk_t start, ecfs_lblk_t end)
 {
 	struct ecfs_inode_info *ei = ECFS_I(inode);
-	__le32 *i_data = ei->i_data;
+	__le64 *i_data = ei->i_data;
 	int addr_per_block = ECFS_ADDR_PER_BLOCK(inode->i_sb);
 	ecfs_lblk_t offsets[4], offsets2[4];
 	Indirect chain[4], chain2[4];
 	Indirect *partial, *partial2;
 	Indirect *p = NULL, *p2 = NULL;
 	ecfs_lblk_t max_block;
-	__le32 nr = 0, nr2 = 0;
+	__le64 nr = 0, nr2 = 0;
 	int n = 0, n2 = 0;
 	unsigned blocksize = inode->i_sb->s_blocksize;
 
@@ -1298,7 +1298,7 @@ int ecfs_ind_remove_space(handle_t *handle, struct inode *inode,
 		while (partial > chain) {
 			ecfs_free_branches(handle, inode, partial->bh,
 				partial->p + 1,
-				(__le32 *)partial->bh->b_data+addr_per_block,
+				(__le64 *)partial->bh->b_data+addr_per_block,
 				(chain+n-1) - partial);
 			partial--;
 		}
@@ -1331,7 +1331,7 @@ end_range:
 		 */
 		while (partial2 > chain2) {
 			ecfs_free_branches(handle, inode, partial2->bh,
-					   (__le32 *)partial2->bh->b_data,
+					   (__le64 *)partial2->bh->b_data,
 					   partial2->p,
 					   (chain2+n2-1) - partial2);
 			partial2--;
@@ -1411,13 +1411,13 @@ end_range:
 		if (partial > chain && depth <= depth2) {
 			ecfs_free_branches(handle, inode, partial->bh,
 					   partial->p + 1,
-					   (__le32 *)partial->bh->b_data+addr_per_block,
+					   (__le64 *)partial->bh->b_data+addr_per_block,
 					   (chain+n-1) - partial);
 			partial--;
 		}
 		if (partial2 > chain2 && depth2 <= depth) {
 			ecfs_free_branches(handle, inode, partial2->bh,
-					   (__le32 *)partial2->bh->b_data,
+					   (__le64 *)partial2->bh->b_data,
 					   partial2->p,
 					   (chain2+n2-1) - partial2);
 			partial2--;

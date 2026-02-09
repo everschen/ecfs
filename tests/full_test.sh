@@ -5,40 +5,91 @@ set -euo pipefail
 # 配置
 ########################
 
+relink() {
+    local link_path="$2"
+    local new_target="$1"
+
+    # 1. 检查是否真的是符号链接
+    if [ -L "$link_path" ]; then
+        rm -f "$link_path"
+    fi
+
+    ln -sf "$new_target" "$link_path"
+}
+
 TEST_PATH=$HOME
-
-ECFS_DIR=$TEST_PATH/linux-6.17.0/fs/ecfs
-ECFS_MKE2FS=$TEST_PATH/e2fsprogs/misc/mke2fs
-E2FS_PATH="$TEST_PATH/e2fsprogs/misc/"
-MNT=/mnt/ecfs
-FSTYPE=ecfs
-MKE2FS="$ECFS_MKE2FS"
-
 inode_start_block=37
 
-ECFS_IMG=$TEST_PATH/test.img
-ECFS_IMG=$TEST_PATH/test_ecfs.img
-MNT_EXT4=/mnt/ext4_test
-MNT_ECFS=/mnt/ecfs_test
+sudo rm -f /tmp/fs_debug.log
+sudo dmesg -C
+
 SIZE=128M
-ECFS_FSCK="$TEST_PATH/e2fsprogs/e2fsck/e2fsck"
 
-echo "[ECFS] build"
-cd "$ECFS_DIR"
-make -j6
+# 如果没有传参数，默认使用 ecfs
+MODE="${1:-ecfs}"
 
-sudo umount /mnt/ecfs 2>/dev/null || true
+case "$MODE" in
+    ecfs|ext4)
+        echo "Selected mode: $MODE"
+        ;;
+    *)
+        echo "Usage: $0 [ecfs|ext4]   (default: ecfs)"
+        exit 1
+        ;;
+esac
 
-if ! grep -q '^ecfs ' /proc/modules; then
-    echo "[ECFS] insmod"
-    sudo insmod ecfs.ko
-elif lsmod | awk '$1=="ecfs" && $3==0 {found=1} END{exit !found}'; then
-    echo "ecfs loaded and refcnt = 0"
+if [ "$MODE" == "ecfs" ]; then
+    ECFS_DIR=$TEST_PATH/linux-6.17.0/fs/ecfs
+    E2FSPROGS=$TEST_PATH/e2fsprogs/
+    MKE2FS=$E2FSPROGS/misc/mke2fs
+    E2FS_PATH=$E2FSPROGS/misc/
+    IMG=$TEST_PATH/test_ecfs.img
+    FSTYPE=$MODE
+    MNT=/mnt/ecfs_test
+    FSCK="$E2FSPROGS/e2fsck/e2fsck"
+    echo "[ECFS] build"
+    cd "$ECFS_DIR"
+    make -j6
+elif [ "$MODE" == "ext4" ]; then
+    E2FSPROGS=$TEST_PATH/e2fsprogs_ori/
+    MKE2FS=$E2FSPROGS/misc/mke2fs
+    E2FS_PATH=$E2FSPROGS/misc/
+    MNT=/mnt/$MODE
+    FSTYPE=$MODE
+    IMG=$TEST_PATH/test_ext4.img
+    FSCK="$E2FSPROGS/e2fsck/e2fsck"
 else
-    echo "ecfs loaded but refcnt != 0"
+    echo "Usage: $0 [ecfs|ext4]   (default: ecfs)"
     exit 1
 fi
 
+
+
+#pass these info for inode, vb use later.
+cat > /tmp/vars.sh <<EOF
+export IMG=$IMG
+export inode_start_block=$inode_start_block
+export E2FSPROGS=$E2FSPROGS
+EOF
+
+sudo umount $MNT 2>/dev/null || true
+
+if [ "$MODE" == "ecfs" ]; then
+  if ! grep -q '^ecfs ' /proc/modules; then
+      echo "[ECFS] insmod"
+      sudo insmod ecfs.ko
+  elif lsmod | awk '$1=="ecfs" && $3==0 {found=1} END{exit !found}'; then
+      echo "ecfs loaded and refcnt = 0, rmmod and insmod"
+      sudo rmmod ecfs
+      sudo insmod ecfs.ko
+  else
+      echo "ecfs loaded but refcnt != 0"
+      exit 1
+  fi
+fi
+
+cd $E2FSPROGS
+make -j6
 
 ########################
 # 通用断言
@@ -227,10 +278,11 @@ test_crash_auto() {
   local LOOP=$1
   local M=$2
   local NAME=$3
+  local FSCK=$4
 
   echo "[TEST-6][$NAME] crash consistency"
 
-  sudo mount $LOOP $M
+  #sudo mount $LOOP $M
 
   mkdir "$M/crash_dir"
   echo "file" > "$M/crash_dir/file1"
@@ -242,8 +294,8 @@ test_crash_auto() {
   sudo umount -l $M || true
   sync
 
-  echo $ECFS_FSCK
-  sudo $ECFS_FSCK -fn $LOOP || fail "$NAME: fsck failed after simulated crash"
+  echo $FSCK
+  sudo $FSCK -fn $LOOP || fail "$NAME: fsck failed after simulated crash"
 
 
   echo "[PASS][$NAME] Test-6 crash consistency"
@@ -270,66 +322,86 @@ run_ops() {
   done
 }
 
+print_title() {
+    title=$1
+    echo ""
+    echo "====================== $title ======================"
+
+}
+
 ########################
 # 主流程
 ########################
-echo "== prepare images =="
-# truncate -s $SIZE $EXT4_IMG
-# truncate -s $SIZE $ECFS_IMG
 
-LOOP_ECFS=$(sudo losetup -f --show $ECFS_IMG)
+print_title "prepare images"
+# truncate -s $SIZE $IMG
+LOOP=$(sudo losetup -f --show $IMG)
+sudo wipefs -a "$LOOP"
 
-sudo wipefs -a "$LOOP_ECFS"
 
-echo "== mkfs =="
-echo ${E2FS_PATH}mke2fs
+print_title ${E2FS_PATH}mke2fs
+sudo ${E2FS_PATH}mke2fs -t ext4 -b 4096 -I 256 -i 32768 -E lazy_itable_init=0,lazy_journal_init=0 $LOOP
+#sudo mkfs.ecfs $LOOP
 
-sudo ${E2FS_PATH}mke2fs -t ext4 -b 4096 -I 256 -i 32768 -E lazy_itable_init=0,lazy_journal_init=0 $LOOP_ECFS
-#sudo mkfs.ecfs $LOOP_ECFS
 
-sudo mkdir -p $MNT_ECFS
-
-echo "== mount =="
-sudo mount -t ecfs $LOOP_ECFS $MNT_ECFS
+print_title mount
+sudo mkdir -p $MNT
+echo "sudo mount -t $MODE $LOOP $MNT"
+sudo mount -t $MODE $LOOP $MNT
 
 ########################
 # Run all tests
 ########################
+
 # Test-1
-sudo bash -c "$(declare -f fail test_mkdir_auto); test_mkdir_auto $MNT_ECFS ecfs"
+print_title "Test-1"
+echo "sudo bash -c (declare -f fail test_mkdir_auto); test_mkdir_auto $MNT $MODE"
+sudo bash -c "$(declare -f fail test_mkdir_auto); test_mkdir_auto $MNT $MODE"
 
 # Test-2
-# sudo bash -c "$(declare -f fail test_rmdir_auto); test_rmdir_auto $MNT_ECFS ecfs"
+print_title Test-2
+sudo bash -c "$(declare -f fail test_rmdir_auto); test_rmdir_auto $MNT $MODE"
 
 # # Test-3
-# sudo bash -c "$(declare -f fail test_unlink_auto); test_unlink_auto $MNT_ECFS ecfs"
+print_title Test-3
+sudo bash -c "$(declare -f fail test_unlink_auto); test_unlink_auto $MNT $MODE"
 
 # # Test-4
-# sudo bash -c "$(declare -f fail test_rename_auto); test_rename_auto $MNT_ECFS ecfs"
+print_title Test-4
+sudo bash -c "$(declare -f fail test_rename_auto); test_rename_auto $MNT $MODE"
 
 # # Test-5
-# sudo bash -c "$(declare -f fail test_hardlink_auto); test_hardlink_auto $MNT_ECFS ecfs"
+print_title Test-5
+sudo bash -c "$(declare -f fail test_hardlink_auto); test_hardlink_auto $MNT $MODE"
+
+
+print_title "mixed stress ops"
+#mixed ops
+sudo bash -c "$(declare -f run_ops); run_ops $MNT"
+
 
 # # Test-6
-# sudo bash -c "$(declare -f fail test_crash_auto); test_crash_auto $LOOP_ECFS $MNT_ECFS ecfs"
+print_title Test-6
+sudo bash -c "$(declare -f fail test_crash_auto); test_crash_auto $LOOP $MNT $MODE $FSCK"
 
-# mixed ops
-# echo "[TEST] mixed stress ops"
-# sudo bash -c "$(declare -f run_ops); run_ops $MNT_ECFS"
+
+print_title "All testcase down"
 
 #sync
 
+#umount done in test-6
 # umount + fsck
-echo "== umount =="
-sudo umount $MNT_ECFS
+# print_title umount
+# echo "sudo umount $MNT"
+# sudo umount $MNT
 
-echo $ECFS_FSCK
-echo "== fsck ecfs =="
-sudo $ECFS_FSCK -fn $LOOP_ECFS || true
+print_title "fsck $MODE"
+echo "sudo $FSCK -fn $LOOP || true"
+sudo $FSCK -fn $LOOP || true
 
 echo "test"
 
 # cleanup
-sudo losetup -d $LOOP_ECFS
+sudo losetup -d $LOOP
 
 echo "ALL TESTS DONE"

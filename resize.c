@@ -829,7 +829,7 @@ static int add_new_gdb(handle_t *handle, struct inode *inode,
 	struct buffer_head *gdb_bh = NULL;
 	int gdbackups;
 	struct ecfs_iloc iloc = { .bh = NULL };
-	__le32 *data;
+	__le64 *data;
 	int err;
 
 	if (test_opt(sb, DEBUG))
@@ -855,7 +855,7 @@ static int add_new_gdb(handle_t *handle, struct inode *inode,
 		goto errout;
 	}
 
-	data = (__le32 *)dind->b_data;
+	data = (__le64 *)dind->b_data;
 	if (le32_to_cpu(data[gdb_num % ECFS_ADDR_PER_BLOCK(sb)]) != gdblock) {
 		ecfs_warning(sb, "new group %u GDT block %llu not reserved",
 			     group, gdblock);
@@ -1026,7 +1026,7 @@ static int reserve_backup_gdb(handle_t *handle, struct inode *inode,
 	struct buffer_head *dind;
 	struct ecfs_iloc iloc;
 	ecfs_fsblk_t blk;
-	__le32 *data, *end;
+	__le64 *data, *end;
 	int gdbackups = 0;
 	int res, i;
 	int err;
@@ -1044,9 +1044,9 @@ static int reserve_backup_gdb(handle_t *handle, struct inode *inode,
 	}
 
 	blk = ECFS_SB(sb)->s_sbh->b_blocknr + 1 + ECFS_SB(sb)->s_gdb_count;
-	data = (__le32 *)dind->b_data + (ECFS_SB(sb)->s_gdb_count %
+	data = (__le64 *)dind->b_data + (ECFS_SB(sb)->s_gdb_count %
 					 ECFS_ADDR_PER_BLOCK(sb));
-	end = (__le32 *)dind->b_data + ECFS_ADDR_PER_BLOCK(sb);
+	end = (__le64 *)dind->b_data + ECFS_ADDR_PER_BLOCK(sb);
 
 	/* Get each reserved primary GDT block and verify it holds backups */
 	for (res = 0; res < reserved_gdb; res++, blk++) {
@@ -1054,7 +1054,7 @@ static int reserve_backup_gdb(handle_t *handle, struct inode *inode,
 			ecfs_warning(sb, "reserved block %llu"
 				     " not at offset %ld",
 				     blk,
-				     (long)(data - (__le32 *)dind->b_data));
+				     (long)(data - (__le64 *)dind->b_data));
 			err = -EINVAL;
 			goto exit_bh;
 		}
@@ -1071,7 +1071,7 @@ static int reserve_backup_gdb(handle_t *handle, struct inode *inode,
 			goto exit_bh;
 		}
 		if (++data >= end)
-			data = (__le32 *)dind->b_data;
+			data = (__le64 *)dind->b_data;
 	}
 
 	for (i = 0; i < reserved_gdb; i++) {
@@ -1091,7 +1091,7 @@ static int reserve_backup_gdb(handle_t *handle, struct inode *inode,
 	blk = group * ECFS_BLOCKS_PER_GROUP(sb);
 	for (i = 0; i < reserved_gdb; i++) {
 		int err2;
-		data = (__le32 *)primary[i]->b_data;
+		data = (__le64 *)primary[i]->b_data;
 		data[gdbackups] = cpu_to_le32(blk + primary[i]->b_blocknr);
 		err2 = ecfs_handle_dirty_metadata(handle, NULL, primary[i]);
 		if (!err)
