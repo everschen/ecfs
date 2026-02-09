@@ -7,8 +7,13 @@ TEST_PATH=$HOME
 
 IMG=$TEST_PATH/test.img
 inode_start_block=1059
+
+
+
 ECFS_DIR=$TEST_PATH/linux-6.17.0/fs/ecfs
 ECFS_MKE2FS=$TEST_PATH/e2fsprogs/misc/mke2fs
+
+# sudo rm /tmp/fs_debug.log
 
 case "$MODE" in
     ecfs|ext4)
@@ -26,11 +31,15 @@ sudo umount /mnt/ecfs 2>/dev/null || true
 sudo umount /mnt/ext4 2>/dev/null || true
 
 # ---------- ECFS：编译 & 加载 ----------
+E2FSPROGS=$TEST_PATH/e2fsprogs_ori/
+MKE2FS=$E2FSPROGS/misc/mke2fs
+
 if [ "$MODE" = "ecfs" ]; then
     echo "[ECFS] build"
     cd "$ECFS_DIR"
     make -j6
-
+    E2FSPROGS=$TEST_PATH/e2fsprogs/
+    MKE2FS=$E2FSPROGS/misc/mke2fs
     if ! grep -q '^ecfs ' /proc/modules; then
         echo "[ECFS] insmod"
         sudo insmod ecfs.ko
@@ -48,6 +57,14 @@ if [ "$MODE" = "ecfs" ]; then
     
 fi
 
+
+#pass these info for inode, vb use later.
+cat > /tmp/vars.sh <<EOF
+export IMG=$IMG
+export inode_start_block=$inode_start_block
+export E2FSPROGS=$E2FSPROGS
+EOF
+
 # ---------- loop ----------
 LOOP=$(sudo losetup -f --show "$IMG")
 echo "[LOOP] $LOOP"
@@ -56,11 +73,6 @@ echo "[LOOP] $LOOP"
 sudo wipefs -a "$LOOP"
 
 # ---------- mkfs ----------
-if [ "$MODE" = "ecfs" ]; then
-    MKE2FS="$ECFS_MKE2FS"
-else
-    MKE2FS="mke2fs"
-fi
 
 echo "[MKFS] using $MKE2FS, inode_ratio=32768"
 

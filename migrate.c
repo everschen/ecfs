@@ -411,7 +411,7 @@ int ecfs_ext_migrate(struct inode *inode)
 {
 	handle_t *handle;
 	int retval = 0, i;
-	__le32 *i_data;
+	__le64 *i_data;
 	struct ecfs_inode_info *ei;
 	struct inode *tmp_inode = NULL;
 	struct migrate_struct lb;

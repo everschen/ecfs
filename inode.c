@@ -61,26 +61,39 @@ static __u32 ecfs_inode_csum(struct inode *inode, struct ecfs_inode *raw,
 	__u32 csum;
 	__u16 dummy_csum = 0;
 	int offset = offsetof(struct ecfs_inode, i_checksum_lo);
+	int old_offset;
 	unsigned int csum_size = sizeof(dummy_csum);
 
 	csum = ecfs_chksum(ei->i_csum_seed, (__u8 *)raw, offset);
+	ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, offset);
 	csum = ecfs_chksum(csum, (__u8 *)&dummy_csum, csum_size);
 	offset += csum_size;
-	csum = ecfs_chksum(csum, (__u8 *)raw + offset,
-			   ECFS_GOOD_OLD_INODE_SIZE - offset);
-
-	if (ECFS_INODE_SIZE(inode->i_sb) > ECFS_GOOD_OLD_INODE_SIZE) {
-		offset = offsetof(struct ecfs_inode, i_checksum_hi);
-		csum = ecfs_chksum(csum, (__u8 *)raw + ECFS_GOOD_OLD_INODE_SIZE,
-				   offset - ECFS_GOOD_OLD_INODE_SIZE);
-		if (ECFS_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
-			csum = ecfs_chksum(csum, (__u8 *)&dummy_csum,
-					   csum_size);
-			offset += csum_size;
-		}
+	ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, offset);
+	
+	if (offset < ECFS_GOOD_OLD_INODE_SIZE)
+	{
+		//actually will not reach here
 		csum = ecfs_chksum(csum, (__u8 *)raw + offset,
-				   ECFS_INODE_SIZE(inode->i_sb) - offset);
+				ECFS_GOOD_OLD_INODE_SIZE - offset);
+		ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, ECFS_GOOD_OLD_INODE_SIZE);
 	}
+	old_offset = offset;
+
+	offset = offsetof(struct ecfs_inode, i_checksum_hi);
+	csum = ecfs_chksum(csum, (__u8 *)raw + old_offset,
+				offset - old_offset);
+	ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, offset);
+	if (ECFS_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
+		csum = ecfs_chksum(csum, (__u8 *)&dummy_csum,
+					csum_size);
+		offset += csum_size;
+		ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, offset);
+		
+	}
+	csum = ecfs_chksum(csum, (__u8 *)raw + offset,
+				ECFS_INODE_SIZE(inode->i_sb) - offset);
+	ecfs_debug("inode->i_ino=%lld csum=%x offset=%d", inode->i_ino, csum, ECFS_INODE_SIZE(inode->i_sb));
+
 
 	return csum;
 }
@@ -104,7 +117,8 @@ static int ecfs_inode_csum_verify(struct inode *inode, struct ecfs_inode *raw,
 	else
 		calculated &= 0xFFFF;
 
-	ecfs_debug("inode->i_ino=%lld raw->i_checksum_lo=%x raw->i_checksum_hi=%x ei->i_csum_seed=%x provided=%x calculated=%x", inode->i_ino, raw->i_checksum_lo, raw->i_checksum_hi, ei->i_csum_seed, provided, calculated);
+	ecfs_debug("inode->i_ino=%lld crc2=%x provided=%x crc3=%x", inode->i_ino, ei->i_csum_seed, provided, calculated);
+
 	return provided == calculated;
 }
 
@@ -5283,13 +5297,13 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	ecfs_debug("inode->i_ino=%lld raw_inode=%x", inode->i_ino, raw_inode);
 
 
-	print_hex_dump(KERN_INFO,
-				"dump: ",
-				DUMP_PREFIX_OFFSET,
-				16, 1,
-				raw_inode,
-				256,
-				false);
+	// print_hex_dump(KERN_INFO,
+	// 			"dump: ",
+	// 			DUMP_PREFIX_OFFSET,
+	// 			16, 1,
+	// 			raw_inode,
+	// 			256,
+	// 			false);
 
 	if ((flags & ECFS_IGET_HANDLE) &&
 	    (raw_inode->i_links_count == 0) && (raw_inode->i_mode == 0)) {
@@ -5316,15 +5330,18 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	/* Precompute checksum seed for inode metadata */
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
-		__u32 csum;
-		__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
+		__u32 csum, crc1;
+		__le64 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
 		__le32 gen = raw_inode->i_generation;
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));
+		crc1 = csum;
+		ecfs_debug("inode->i_ino=%lld fs->seed=%x crc1=%x", inode->i_ino, sbi->s_csum_seed, crc1);
+		
 		ei->i_csum_seed = ecfs_chksum(csum, (__u8 *)&gen, sizeof(gen));
+		ecfs_debug("inode->i_ino=%lld crc1=%x gen=%x crc2=%x", inode->i_ino, crc1, gen, ei->i_csum_seed);
 	}
 
-	ecfs_debug("inode->i_ino=%lld ei->i_csum_seed=%x", inode->i_ino, ei->i_csum_seed);
 	if ((!ecfs_inode_csum_verify(inode, raw_inode, ei) ||
 	    ecfs_simulate_fail(sb, ECFS_SIM_INODE_CRC)) &&
 	     (!(ECFS_SB(sb)->s_mount_state & ECFS_FC_REPLAY))) {

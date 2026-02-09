@@ -354,9 +354,9 @@ int ecfs_inode_block_valid(struct inode *inode, ecfs_fsblk_t start_blk,
 }
 
 int ecfs_check_blockref(const char *function, unsigned int line,
-			struct inode *inode, __le32 *p, unsigned int max)
+			struct inode *inode, __le64 *p, unsigned int max)
 {
-	__le32 *bref = p;
+	__le64 *bref = p;
 	unsigned int blk;
 	journal_t *journal = ECFS_SB(inode->i_sb)->s_journal;
 
