@@ -347,7 +347,7 @@ void ecfs_reset_inode_seed(struct inode *inode)
 {
 	struct ecfs_inode_info *ei = ECFS_I(inode);
 	struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
-	__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
+	__le32 inum = cpu_to_le32(gid_get_lid(inode->i_ino));
 	__le32 gen = cpu_to_le32(inode->i_generation);
 	__u32 csum;
 
@@ -380,7 +380,7 @@ static long swap_inode_boot_loader(struct super_block *sb,
 	blkcnt_t blocks;
 	unsigned short bytes;
 
-	inode_bl = ecfs_iget(sb, make_fid_sbi(ECFS_SB(sb), ECFS_BOOT_LOADER_INO),
+	inode_bl = ecfs_iget(sb, make_gid_sbi(ECFS_SB(sb), ECFS_BOOT_LOADER_INO),
 			ECFS_IGET_SPECIAL | ECFS_IGET_BAD);
 	if (IS_ERR(inode_bl))
 		return PTR_ERR(inode_bl);

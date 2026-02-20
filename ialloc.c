@@ -278,7 +278,7 @@ void ecfs_free_inode(handle_t *handle, struct inode *inode)
 	ecfs_clear_inode(inode);
 
 	es = sbi->s_es;
-	ino = fid_get_ino(ino); /*ino should be local from here.*/
+	ino = gid_get_lid(ino); /*ino should be local from here.*/
 	if (ino < ECFS_FIRST_INO(sb) || ino > le32_to_cpu(es->s_inodes_count)) {
 		ecfs_error(sb, "reserved or nonexistent inode %lu", ino);
 		goto error_return;
@@ -632,7 +632,7 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
 	 *
 	 * So add our directory's i_ino into the starting point for the hash.
 	 */
-	*group = (*group + fid_get_ino(parent->i_ino)) % ngroups;
+	*group = (*group + gid_get_lid(parent->i_ino)) % ngroups;
 
 	/*
 	 * Use a quadratic hash to find a group with a free inode and some free
@@ -760,7 +760,7 @@ int ecfs_mark_inode_used(struct super_block *sb, int ino)
 	int bit;
 	int err;
 
-	ino = fid_get_ino(ino);
+	ino = gid_get_lid(ino);
 	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		return -EFSCORRUPTED;
 
@@ -1254,7 +1254,7 @@ got:
 						flex_group)->free_inodes);
 	}
 
-	inode->i_ino = make_fid_sbi(sbi, ino + group * ECFS_INODES_PER_GROUP(sb)); /*updated to use node id and disk id here*/
+	inode->i_ino = make_gid_sbi(sbi, ino + group * ECFS_INODES_PER_GROUP(sb)); /*updated to use node id and disk id here*/
 	/* This is the optimal IO size (for stat), not the fs block size */
 	inode->i_blocks = 0;
 	simple_inode_init_ts(inode);
@@ -1293,12 +1293,12 @@ got:
 	/* Precompute checksum seed for inode metadata */
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		__u32 csum;
-		__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino)); 
+		__le32 inum = cpu_to_le32(gid_get_lid(inode->i_ino)); 
 		__le32 gen = cpu_to_le32(inode->i_generation);
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));
 		ei->i_csum_seed = ecfs_chksum(csum, (__u8 *)&gen, sizeof(gen));
-		//ecfs_debug("inode->i_ino=%d crc1=%x gen=%x crc2=%x", fid_get_ino(inode->i_ino), csum, gen, ei->i_csum_seed);
+		//ecfs_debug("inode->i_ino=%d crc1=%x gen=%x crc2=%x", gid_get_lid(inode->i_ino), csum, gen, ei->i_csum_seed);
 	}
 
 	ecfs_clear_state_flags(ei); /* Only relevant on 32-bit archs */
@@ -1381,7 +1381,7 @@ struct inode *ecfs_orphan_get(struct super_block *sb, unsigned long ino)
 	struct inode *inode = NULL;
 	int err = -EFSCORRUPTED;
 
-	ino = fid_get_ino(ino);
+	ino = gid_get_lid(ino);
 	if (ino < ECFS_FIRST_INO(sb) || ino > max_ino)
 		goto bad_orphan;
 

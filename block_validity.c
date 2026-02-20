@@ -156,7 +156,7 @@ static int ecfs_protect_reserved_inode(struct super_block *sb,
 	u32 i = 0, num;
 	int err = 0, n;
 
-	u64 fid = make_fid_sbi(sbi, ino);
+	u64 fid = make_gid_sbi(sbi, ino);
 
 	/* this ino is from s_journal_inum, let's assume it's local for current disk.*/
 	if ((ino < ECFS_ROOT_INO) ||
@@ -222,7 +222,7 @@ int ecfs_setup_system_zone(struct super_block *sb)
 	ecfs_group_t i;
 	int ret;
 
-	u64 fid = make_fid_sbi(sbi, 0);
+	u64 fid = make_gid_sbi(sbi, 0);
 
 	system_blks = kzalloc(sizeof(*system_blks), GFP_KERNEL);
 	if (!system_blks)

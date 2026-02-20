@@ -1457,14 +1457,14 @@ int ecfs_read_inline_dir(struct file *file,
 
 	while (ctx->pos < extra_size) {
 		if (ctx->pos == 0) {
-			if (!dir_emit(ctx, ".", 1, fid_get_ino(inode->i_ino), DT_DIR))
+			if (!dir_emit(ctx, ".", 1, gid_get_lid(inode->i_ino), DT_DIR))
 				goto out;
 			ctx->pos = dotdot_offset;
 			continue;
 		}
 
 		if (ctx->pos == dotdot_offset) {
-			if (!dir_emit(ctx, "..", 2, fid_get_ino(parent_ino), DT_DIR))
+			if (!dir_emit(ctx, "..", 2, gid_get_lid(parent_ino), DT_DIR))
 				goto out;
 			ctx->pos = dotdot_size;
 			continue;
@@ -1477,7 +1477,7 @@ int ecfs_read_inline_dir(struct file *file,
 			goto out;
 		if (le64_to_cpu(de->inode)) {
 			if (!dir_emit(ctx, de->name, de->name_len,
-				      fid_get_ino(de->inode),
+				      gid_get_lid(de->inode),
 				      get_dtype(sb, de->file_type)))
 				goto out;
 		}

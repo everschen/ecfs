@@ -246,7 +246,7 @@ check_xattrs(struct inode *inode, struct buffer_head *bh,
 			err_str = "ea_inode specified without ea_inode feature enabled";
 			goto errout;
 		}
-		if (ea_ino && ((fid_get_ino(ea_ino) == ECFS_ROOT_INO) ||
+		if (ea_ino && ((gid_get_lid(ea_ino) == ECFS_ROOT_INO) ||
 			       !ecfs_valid_inum(inode->i_sb, ea_ino))) {
 			err_str = "invalid ea_ino";
 			goto errout;

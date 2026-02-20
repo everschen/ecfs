@@ -449,7 +449,7 @@ int ecfs_ext_migrate(struct inode *inode)
 		retval = PTR_ERR(handle);
 		goto out_unlock;
 	}
-	goal = (((fid_get_ino(inode->i_ino) - 1) / ECFS_INODES_PER_GROUP(inode->i_sb)) *
+	goal = (((gid_get_lid(inode->i_ino) - 1) / ECFS_INODES_PER_GROUP(inode->i_sb)) *
 		ECFS_INODES_PER_GROUP(inode->i_sb)) + 1;
 	owner[0] = i_uid_read(inode);
 	owner[1] = i_gid_read(inode);

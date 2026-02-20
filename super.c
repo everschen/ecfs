@@ -5425,7 +5425,7 @@ static int __ecfs_fill_super(struct fs_context *fc, struct super_block *sb)
 	 * so we can safely mount the rest of the filesystem now.
 	 */
 
-	root = ecfs_iget(sb, make_fid_sbi(sbi, ECFS_ROOT_INO), ECFS_IGET_SPECIAL);
+	root = ecfs_iget(sb, make_gid_sbi(sbi, ECFS_ROOT_INO), ECFS_IGET_SPECIAL);
 	if (IS_ERR(root)) {
 		ecfs_msg(sb, KERN_ERR, "get root inode failed");
 		err = PTR_ERR(root);
@@ -5723,7 +5723,7 @@ static struct inode *ecfs_get_journal_inode(struct super_block *sb,
 	 */
 
 	/*since the journal_inum is from le32_to_cpu(es->s_journal_inum);, it is 32 bit num, so no node and disk id.*/
-	journal_inode = ecfs_iget(sb, make_fid_sbi(ECFS_SB(sb), journal_inum), ECFS_IGET_SPECIAL);
+	journal_inode = ecfs_iget(sb, make_gid_sbi(ECFS_SB(sb), journal_inum), ECFS_IGET_SPECIAL);
 	//journal_inode = ecfs_iget(sb, journal_inum, ECFS_IGET_SPECIAL);
 	if (IS_ERR(journal_inode)) {
 		ecfs_msg(sb, KERN_ERR, "no journal found");

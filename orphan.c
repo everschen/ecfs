@@ -584,7 +584,7 @@ int ecfs_init_orphan_info(struct super_block *sb)
 	if (!ecfs_has_feature_orphan_file(sb))
 		return 0;
 
-	inode = ecfs_iget(sb, make_fid_sbi(ECFS_SB(sb), orphan_ino), ECFS_IGET_SPECIAL);
+	inode = ecfs_iget(sb, make_gid_sbi(ECFS_SB(sb), orphan_ino), ECFS_IGET_SPECIAL);
 	if (IS_ERR(inode)) {
 		ecfs_msg(sb, KERN_ERR, "get orphan inode failed");
 		return PTR_ERR(inode);

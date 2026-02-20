@@ -3112,7 +3112,7 @@ bool ecfs_empty_dir(struct inode *inode)
 	de = ecfs_next_entry(de, sb->s_blocksize);
 	if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 offset) ||
-	    le32_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
+	    le32_to_cpu(gid_get_lid(de->inode)) == 0 || de->name_len != 2 ||
 	    de->name[0] != '.' || de->name[1] != '.') {
 		ecfs_warning_inode(inode, "directory missing '..'");
 		brelse(bh);
@@ -3567,7 +3567,7 @@ static struct buffer_head *ecfs_get_first_dir_block(handle_t *handle,
 		de = ecfs_next_entry(de, inode->i_sb->s_blocksize);
 		if (ecfs_check_dir_entry(inode, NULL, de, bh, bh->b_data,
 					 bh->b_size, offset) ||
-		    le32_to_cpu(fid_get_ino(de->inode)) == 0 || de->name_len != 2 ||
+		    le32_to_cpu(gid_get_lid(de->inode)) == 0 || de->name_len != 2 ||
 		    de->name[0] != '.' || de->name[1] != '.') {
 			ECFS_ERROR_INODE(inode, "directory missing '..'");
 			brelse(bh);

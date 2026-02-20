@@ -341,32 +341,32 @@ struct ecfs_io_submit {
  * 31.. 0: ino     (32 bits)
  */
 
-#define FID_NODE_SHIFT 48
-#define FID_DISK_SHIFT 32
+#define GID_NODE_SHIFT 48
+#define GID_DISK_SHIFT 32
 
-static inline uint64_t make_fid(uint16_t node_id, uint16_t disk_id, uint32_t ino) {
-    uint64_t fid = 0;
-    fid |= ((uint64_t)node_id << FID_NODE_SHIFT);
-    fid |= ((uint64_t)disk_id  << FID_DISK_SHIFT);
-    fid |= (uint64_t)ino;
-    return fid;
+static inline uint64_t make_gid(uint16_t node_id, uint16_t disk_id, uint32_t lid) {
+    uint64_t gid = 0;
+    gid |= ((uint64_t)node_id << GID_NODE_SHIFT);
+    gid |= ((uint64_t)disk_id  << GID_DISK_SHIFT);
+    gid |= (uint64_t)lid;
+    return gid;
 }
 
-static inline uint16_t fid_get_node_id(uint64_t fid) {
-    return (uint16_t)((fid >> FID_NODE_SHIFT) & 0xFFFFu);
+static inline uint16_t gid_get_node_id(uint64_t gid) {
+    return (uint16_t)((gid >> GID_NODE_SHIFT) & 0xFFFFu);
 }
 
-static inline uint16_t fid_get_disk_id(uint64_t fid) {
-    return (uint16_t)((fid >> FID_DISK_SHIFT) & 0xFFFFu);
+static inline uint16_t gid_get_disk_id(uint64_t gid) {
+    return (uint16_t)((gid >> GID_DISK_SHIFT) & 0xFFFFu);
 }
 
-static inline uint32_t fid_get_ino(uint64_t fid) {
-    return (uint32_t)(fid & 0xFFFFFFFFu);
+static inline uint32_t gid_get_lid(uint64_t gid) {
+    return (uint32_t)(gid & 0xFFFFFFFFu);
 }
 
-static inline uint32_t fid_get_node_and_disk_id(uint64_t fid)
+static inline uint32_t gid_get_node_and_disk_id(uint64_t gid)
 {
-    return (uint32_t)(fid >> FID_DISK_SHIFT);
+    return (uint32_t)(gid >> GID_DISK_SHIFT);
 }
 
 
@@ -1824,8 +1824,8 @@ struct ecfs_sb_info {
 	struct ecfs_fc_replay_state s_fc_replay_state;
 };
 
-static inline uint64_t make_fid_sbi(struct ecfs_sb_info *sbi, uint32_t ino) {
-	return make_fid(sbi->s_node_id, sbi->s_disk_id, ino);
+static inline uint64_t make_gid_sbi(struct ecfs_sb_info *sbi, uint32_t ino) {
+	return make_gid(sbi->s_node_id, sbi->s_disk_id, ino);
 }
 
 static inline struct ecfs_sb_info *ECFS_SB(struct super_block *sb)
@@ -1866,7 +1866,7 @@ static inline int ecfs_valid_inum(struct super_block *sb, unsigned long ino)
 	struct ecfs_sb_info *sbi = ECFS_SB(sb);
 
 	/*be sure to match ino withs sb .*/
-	// if (fid_get_ino(ino) >= ECFS_FIRST_INO(sb))
+	// if (gid_get_lid(ino) >= ECFS_FIRST_INO(sb))
 	// {
 	// 	ASSERT(fid_get_node_and_disk_id(ino) != 0);
 	// 	ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
@@ -1874,7 +1874,7 @@ static inline int ecfs_valid_inum(struct super_block *sb, unsigned long ino)
 	// }
 
 
-	ino = fid_get_ino(ino);
+	ino = gid_get_lid(ino);
 
 	return ino == ECFS_ROOT_INO ||
 		(ino >= ECFS_FIRST_INO(sb) &&
@@ -3141,7 +3141,7 @@ static inline bool is_special_ino(struct super_block *sb, unsigned long ino)
 	// ASSERT(fid_get_node_id(ino) == sbi->s_node_id);
 	// ASSERT(fid_get_disk_id(ino) == sbi->s_disk_id);
 
-	ino = fid_get_ino(ino);
+	ino = gid_get_lid(ino);
 
 	return (ino < ECFS_FIRST_INO(sb) && ino != ECFS_ROOT_INO) ||
 		ino == le32_to_cpu(es->s_usr_quota_inum) ||
