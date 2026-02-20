@@ -2,11 +2,11 @@
 
 ### Development Plan
 
-- Phase one: one node, one disk
-    - fid, inode design ready
+- Phase one: one node, one disk (2026-02-20 done)
+    - gid, global inode, global block, design ready
     - unit test system
 
-- Phase two: one node, two disks
+- Phase two: one node, two disks (ongoing)
     - support for two disks
 
 
