@@ -4584,7 +4584,7 @@ static int ecfs_init_metadata_csum(struct super_block *sb, struct ecfs_super_blo
 	/* Check for a known checksum algorithm */
 	if (!ecfs_verify_csum_type(sb, es)) {
 		ecfs_msg(sb, KERN_ERR, "VFS: Found ecfs filesystem with "
-			 "unknown checksum algorithm es->s_checksum_type=%d s_checksum_type=%x  s_blocks_count_hi=%x.", es->s_checksum_type, offsetof(struct ecfs_super_block, s_checksum_type), offsetof(struct ecfs_super_block, s_blocks_count_hi));
+			 "unknown checksum algorithm es->s_checksum_type=%d s_checksum_type=%lx  s_blocks_count_hi=%lx.", es->s_checksum_type, offsetof(struct ecfs_super_block, s_checksum_type), offsetof(struct ecfs_super_block, s_blocks_count_hi));
 		return -EINVAL;
 	}
 	ecfs_setup_csum_trigger(sb, ECFS_JTR_ORPHAN_FILE,

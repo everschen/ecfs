@@ -1589,7 +1589,7 @@ TRACE_EVENT(ecfs_ext_convert_to_initialized_enter,
 		__entry->u_pblk		= ecfs_ext_pblock(ux);
 	),
 
-	TP_printk("dev %d,%d ino %lu m_lblk %u m_len %u u_lblk %u u_len %u "
+	TP_printk("dev %d,%d ino %lu m_lblk %llu m_len %u u_lblk %llu u_len %u "
 		  "u_pblk %llu",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
@@ -1633,9 +1633,9 @@ TRACE_EVENT(ecfs_ext_convert_to_initialized_fastpath,
 		__entry->i_pblk		= ecfs_ext_pblock(ix);
 	),
 
-	TP_printk("dev %d,%d ino %lu m_lblk %u m_len %u "
-		  "u_lblk %u u_len %u u_pblk %llu "
-		  "i_lblk %u i_len %u i_pblk %llu ",
+	TP_printk("dev %d,%d ino %lu m_lblk %llu m_len %u "
+		  "u_lblk %llu u_len %u u_pblk %llu "
+		  "i_lblk %llu i_len %u i_pblk %llu ",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
 		  __entry->m_lblk, __entry->m_len,
@@ -1665,7 +1665,7 @@ DECLARE_EVENT_CLASS(ecfs__map_blocks_enter,
 		__entry->flags	= flags;
 	),
 
-	TP_printk("dev %d,%d ino %lu lblk %u len %u flags %s",
+	TP_printk("dev %d,%d ino %lu lblk %llu len %u flags %s",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
 		  __entry->lblk, __entry->len, show_map_flags(__entry->flags))
@@ -1713,7 +1713,7 @@ DECLARE_EVENT_CLASS(ecfs__map_blocks_exit,
 		__entry->ret	= ret;
 	),
 
-	TP_printk("dev %d,%d ino %lu flags %s lblk %u pblk %llu len %u "
+	TP_printk("dev %d,%d ino %lu flags %s lblk %llu pblk %llu len %u "
 		  "mflags %s ret %d",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
@@ -1754,7 +1754,7 @@ TRACE_EVENT(ecfs_ext_load_extent,
 		__entry->lblk	= lblk;
 	),
 
-	TP_printk("dev %d,%d ino %lu lblk %u pblk %llu",
+	TP_printk("dev %d,%d ino %lu lblk %llu pblk %llu",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
 		  __entry->lblk, __entry->pblk)
@@ -1975,7 +1975,7 @@ TRACE_EVENT(ecfs_get_implied_cluster_alloc_exit,
 		__entry->ret	= ret;
 	),
 
-	TP_printk("dev %d,%d m_lblk %u m_pblk %llu m_len %u m_flags %s ret %d",
+	TP_printk("dev %d,%d m_lblk %llu m_pblk %llu m_len %u m_flags %s ret %d",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  __entry->lblk, (unsigned long long) __entry->pblk,
 		  __entry->len, show_mflags(__entry->flags), __entry->ret)
@@ -2222,7 +2222,7 @@ DECLARE_EVENT_CLASS(ecfs__es_extent,
 		__entry->status	= ecfs_es_status(es);
 	),
 
-	TP_printk("dev %d,%d ino %lu es [%u/%u) mapped %llu status %s",
+	TP_printk("dev %d,%d ino %lu es [%llu/%llu) mapped %llu status %s",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
 		  __entry->lblk, __entry->len,
@@ -2283,7 +2283,7 @@ TRACE_EVENT(ecfs_es_find_extent_range_enter,
 		__entry->lblk	= lblk;
 	),
 
-	TP_printk("dev %d,%d ino %lu lblk %u",
+	TP_printk("dev %d,%d ino %lu lblk %llu",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino, __entry->lblk)
 );
@@ -2311,7 +2311,7 @@ TRACE_EVENT(ecfs_es_find_extent_range_exit,
 		__entry->status	= ecfs_es_status(es);
 	),
 
-	TP_printk("dev %d,%d ino %lu es [%u/%u) mapped %llu status %s",
+	TP_printk("dev %d,%d ino %lu es [%llu/%llu) mapped %llu status %s",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,
 		  __entry->lblk, __entry->len,
@@ -2335,7 +2335,7 @@ TRACE_EVENT(ecfs_es_lookup_extent_enter,
 		__entry->lblk	= lblk;
 	),
 
-	TP_printk("dev %d,%d ino %lu lblk %u",
+	TP_printk("dev %d,%d ino %lu lblk %llu",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino, __entry->lblk)
 );
@@ -2366,7 +2366,7 @@ TRACE_EVENT(ecfs_es_lookup_extent_exit,
 		__entry->found	= found;
 	),
 
-	TP_printk("dev %d,%d ino %lu found %d [%u/%u) %llu %s",
+	TP_printk("dev %d,%d ino %lu found %d [%llu/%llu) %llu %s",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino, __entry->found,
 		  __entry->lblk, __entry->len,
@@ -2536,7 +2536,7 @@ TRACE_EVENT(ecfs_es_insert_delayed_extent,
 		__entry->end_allocated	= end_allocated;
 	),
 
-	TP_printk("dev %d,%d ino %lu es [%u/%u) mapped %llu status %s "
+	TP_printk("dev %d,%d ino %lu es [%llu/%llu) mapped %llu status %s "
 		  "allocated %d %d",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  (unsigned long) __entry->ino,

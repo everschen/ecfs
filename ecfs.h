@@ -68,7 +68,7 @@
  * Define ECFSFS_DEBUG to produce debug messages
  */
 //#undef ECFSFS_DEBUG
-#define ECFSFS_DEBUG
+//#define ECFSFS_DEBUG
 
 #ifdef ECFSFS_DEBUG
 #define ecfs_debug(f, a...)						\
@@ -116,7 +116,7 @@ typedef int ecfs_grpblk_t;
 typedef unsigned long long ecfs_fsblk_t;
 
 /* data type for file logical block number */
-typedef __u32 ecfs_lblk_t;
+typedef __u64 ecfs_lblk_t;
 
 /* data type for block group number */
 typedef unsigned int ecfs_group_t;
@@ -1069,7 +1069,7 @@ enum {
  * fourth extended file system inode data in memory
  */
 struct ecfs_inode_info {
-	__le32	i_data[15];	/* unconverted */
+	__le64	i_data[15];	/* unconverted */
 	__u32	i_dtime;
 	ecfs_fsblk_t	i_file_acl;
 
@@ -3650,7 +3650,7 @@ int ecfs_enable_quotas(struct super_block *sb);
  */
 #define ecfs_check_indirect_blockref(inode, bh)				\
 	ecfs_check_blockref(__func__, __LINE__, inode,			\
-			    (__le32 *)(bh)->b_data,			\
+			    (__le64 *)(bh)->b_data,			\
 			    ECFS_ADDR_PER_BLOCK((inode)->i_sb))
 
 #define ecfs_ind_check_inode(inode)					\
@@ -3792,7 +3792,7 @@ extern int ecfs_inode_block_valid(struct inode *inode,
 				  ecfs_fsblk_t start_blk,
 				  unsigned int count);
 extern int ecfs_check_blockref(const char *, unsigned int,
-			       struct inode *, __le32 *, unsigned int);
+			       struct inode *, __le64 *, unsigned int);
 extern int ecfs_sb_block_valid(struct super_block *sb, struct inode *inode,
 				ecfs_fsblk_t start_blk, unsigned int count);
 

@@ -133,7 +133,7 @@ static struct buffer_head *__ecfs_read_dirblock(struct inode *inode,
 
 	if (block >= inode->i_size >> inode->i_blkbits) {
 		ecfs_error_inode(inode, func, line, block,
-		       "Attempting to read directory block (%u) that is past i_size (%llu)",
+		       "Attempting to read directory block (%llu) that is past i_size (%llu)",
 		       block, inode->i_size);
 		return ERR_PTR(-EFSCORRUPTED);
 	}
@@ -154,7 +154,7 @@ static struct buffer_head *__ecfs_read_dirblock(struct inode *inode,
 	/* The first directory block must not be a hole. */
 	if (!bh && (type == INDEX || type == DIRENT_HTREE || block == 0)) {
 		ecfs_error_inode(inode, func, line, block,
-				 "Directory hole found for htree %s block %u",
+				 "Directory hole found for htree %s block %llu",
 				 (type == INDEX) ? "index" : "leaf", block);
 		return ERR_PTR(-EFSCORRUPTED);
 	}
@@ -898,7 +898,7 @@ dx_probe(struct ecfs_filename *fname, struct inode *dir,
 		for (i = 0; i <= level; i++) {
 			if (blocks[i] == block) {
 				ecfs_warning_inode(dir,
-					"dx entry: tree cycle block %u points back to block %u",
+					"dx entry: tree cycle block %llu points back to block %llu",
 					blocks[level], block);
 				goto fail;
 			}
@@ -2373,8 +2373,6 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 	if (ecfs_has_feature_metadata_csum(inode->i_sb))
 		csum_size = sizeof(struct ecfs_dir_entry_tail);
 
-	ECFS_CRIT("csum_size=%d", csum_size);
-
 	sb = dir->i_sb;
 	blocksize = sb->s_blocksize;
 
@@ -2385,12 +2383,11 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		return -EINVAL;
 
 	retval = ecfs_fname_setup_filename(dir, &dentry->d_name, 0, &fname);
-	ECFS_CRIT("csum_size=%d retval=%d", csum_size, retval);
+
 	if (retval)
 		return retval;
-	ECFS_CRIT("csum_size=%d", csum_size);
+
 	if (ecfs_has_inline_data(dir)) {
-		ECFS_CRIT("csum_size=%d", csum_size);
 		retval = ecfs_try_add_inline_entry(handle, &fname, dir, inode);
 		if (retval < 0)
 			goto out;
@@ -2400,9 +2397,7 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		}
 	}
 
-	ECFS_CRIT("csum_size=%d", csum_size);
 	if (is_dx(dir)) {
-		ECFS_CRIT("csum_size=%d", csum_size);
 		retval = ecfs_dx_add_entry(handle, &fname, dir, inode);
 		if (!retval || (retval != ERR_BAD_DX_DIR))
 			goto out;
@@ -2419,15 +2414,14 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		if (unlikely(retval))
 			goto out;
 	}
-	ECFS_CRIT("csum_size=%d", csum_size);
+
 	blocks = dir->i_size >> sb->s_blocksize_bits;
 	for (block = 0; block < blocks; block++) {
-		ECFS_CRIT("csum_size=%d", csum_size);
 		bh = ecfs_read_dirblock(dir, block, DIRENT);
 		if (bh == NULL) {
 			bh = ecfs_bread(handle, dir, block,
 					ECFS_GET_BLOCKS_CREATE);
-			ECFS_CRIT("csum_size=%d", csum_size);
+
 			goto add_to_new_block;
 		}
 		if (IS_ERR(bh)) {
@@ -2435,14 +2429,14 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 			bh = NULL;
 			goto out;
 		}
-		ECFS_CRIT("csum_size=%d", csum_size);
+
 		retval = add_dirent_to_buf(handle, &fname, dir, inode,
 					   NULL, bh);
 		ECFS_CRIT("csum_size=%d retval=%d", csum_size, retval);
 		if (retval != -ENOSPC)
 			goto out;
 		
-		ECFS_CRIT("csum_size=%d", csum_size);
+
 		if (blocks == 1 && !dx_fallback &&
 		    ecfs_has_feature_dir_index(sb)) {
 			retval = make_indexed_dir(handle, &fname, dir,
@@ -2452,10 +2446,10 @@ static int ecfs_add_entry(handle_t *handle, struct dentry *dentry,
 		}
 		brelse(bh);
 	}
-	ECFS_CRIT("csum_size=%d", csum_size);
+
 	bh = ecfs_append(handle, dir, &block);
 add_to_new_block:
-	ECFS_CRIT("csum_size=%d", csum_size);
+
 	if (IS_ERR(bh)) {
 		retval = PTR_ERR(bh);
 		bh = NULL;
@@ -2468,10 +2462,9 @@ add_to_new_block:
 	if (csum_size)
 		ecfs_initialize_dirent_tail(bh, blocksize);
 
-	ECFS_CRIT("csum_size=%d", csum_size);
+
 	retval = add_dirent_to_buf(handle, &fname, dir, inode, de, bh);
 out:
-	ECFS_CRIT("csum_size=%d", csum_size);
 	ecfs_fname_free_filename(&fname);
 	brelse(bh);
 	if (retval == 0)

@@ -61,26 +61,33 @@ static __u32 ecfs_inode_csum(struct inode *inode, struct ecfs_inode *raw,
 	__u32 csum;
 	__u16 dummy_csum = 0;
 	int offset = offsetof(struct ecfs_inode, i_checksum_lo);
+	int old_offset;
 	unsigned int csum_size = sizeof(dummy_csum);
 
 	csum = ecfs_chksum(ei->i_csum_seed, (__u8 *)raw, offset);
 	csum = ecfs_chksum(csum, (__u8 *)&dummy_csum, csum_size);
 	offset += csum_size;
-	csum = ecfs_chksum(csum, (__u8 *)raw + offset,
-			   ECFS_GOOD_OLD_INODE_SIZE - offset);
-
-	if (ECFS_INODE_SIZE(inode->i_sb) > ECFS_GOOD_OLD_INODE_SIZE) {
-		offset = offsetof(struct ecfs_inode, i_checksum_hi);
-		csum = ecfs_chksum(csum, (__u8 *)raw + ECFS_GOOD_OLD_INODE_SIZE,
-				   offset - ECFS_GOOD_OLD_INODE_SIZE);
-		if (ECFS_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
-			csum = ecfs_chksum(csum, (__u8 *)&dummy_csum,
-					   csum_size);
-			offset += csum_size;
-		}
+	
+	if (offset < ECFS_GOOD_OLD_INODE_SIZE)
+	{
+		//actually will not reach here
 		csum = ecfs_chksum(csum, (__u8 *)raw + offset,
-				   ECFS_INODE_SIZE(inode->i_sb) - offset);
+				ECFS_GOOD_OLD_INODE_SIZE - offset);
 	}
+	old_offset = offset;
+
+	offset = offsetof(struct ecfs_inode, i_checksum_hi);
+	csum = ecfs_chksum(csum, (__u8 *)raw + old_offset,
+				offset - old_offset);
+	if (ECFS_FITS_IN_INODE(raw, ei, i_checksum_hi)) {
+		csum = ecfs_chksum(csum, (__u8 *)&dummy_csum,
+					csum_size);
+		offset += csum_size;
+		
+	}
+	csum = ecfs_chksum(csum, (__u8 *)raw + offset,
+				ECFS_INODE_SIZE(inode->i_sb) - offset);
+
 
 	return csum;
 }
@@ -95,7 +102,6 @@ static int ecfs_inode_csum_verify(struct inode *inode, struct ecfs_inode *raw,
 	    !ecfs_has_feature_metadata_csum(inode->i_sb))
 		return 1;
 
-	ecfs_debug("inode->i_ino=%lld raw->i_checksum_lo=%x raw->i_checksum_hi=%x ei->i_csum_seed=%x", inode->i_ino, raw->i_checksum_lo, raw->i_checksum_hi, ei->i_csum_seed);
 	provided = le16_to_cpu(raw->i_checksum_lo);
 	calculated = ecfs_inode_csum(inode, raw, ei);
 	if (ECFS_INODE_SIZE(inode->i_sb) > ECFS_GOOD_OLD_INODE_SIZE &&
@@ -104,7 +110,8 @@ static int ecfs_inode_csum_verify(struct inode *inode, struct ecfs_inode *raw,
 	else
 		calculated &= 0xFFFF;
 
-	ecfs_debug("inode->i_ino=%lld raw->i_checksum_lo=%x raw->i_checksum_hi=%x ei->i_csum_seed=%x provided=%x calculated=%x", inode->i_ino, raw->i_checksum_lo, raw->i_checksum_hi, ei->i_csum_seed, provided, calculated);
+	//ecfs_debug("inode->i_ino=%lld crc2=%x provided=%x crc3=%x", fid_get_ino(inode->i_ino), ei->i_csum_seed, provided, calculated);
+
 	return provided == calculated;
 }
 
@@ -3611,7 +3618,7 @@ static int ecfs_map_blocks_atomic_write_slow(handle_t *handle,
 			      ECFS_GET_BLOCKS_QUERY_LAST_IN_LEAF);
 	if (ret != m_len) {
 		ecfs_warning_inode(inode,
-			"allocation failed for atomic write request m_lblk:%u, m_len:%u, ret:%d\n",
+			"allocation failed for atomic write request m_lblk:%llu, m_len:%u, ret:%d\n",
 			m_lblk, m_len, ret);
 		ret = -EINVAL;
 	}
@@ -4848,7 +4855,7 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 
 	// if (fid_get_node_id(ino)==0)
 	// 	dump_stack();
-	ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
+	//ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
 
 	ino = fid_get_ino(ino);
 	if (ino < ECFS_ROOT_INO ||
@@ -4867,7 +4874,6 @@ static int __ecfs_get_inode_loc(struct super_block *sb, unsigned long ino,
 	inode_offset = ((fid_get_ino(ino) - 1) %
 			ECFS_INODES_PER_GROUP(sb));
 	iloc->offset = (inode_offset % inodes_per_block) * ECFS_INODE_SIZE(sb);
-	ecfs_debug("fid:%d-%d-%d inode_offset= %d iloc->offset=%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino), inode_offset, iloc->offset);
 
 	block = ecfs_inode_table(sb, gdp);
 	if ((block <= le32_to_cpu(ECFS_SB(sb)->s_es->s_first_data_block)) ||
@@ -5248,7 +5254,7 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	//ASSERT(fid_get_disk_id(ino) == ECFS_SB(sb)->s_disk_id);
 	// if (fid_get_node_id(ino)==0)
 	// 	dump_stack();
-	ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
+	//ecfs_debug("fid:%d-%d-%d", fid_get_node_id(ino),fid_get_disk_id(ino), fid_get_ino(ino));
 
 	if ((!(flags & ECFS_IGET_SPECIAL) && is_special_ino(sb, ino)) ||
 	    (fid_get_ino(ino) < ECFS_ROOT_INO) ||
@@ -5280,16 +5286,6 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	if (ret < 0)
 		goto bad_inode;
 	raw_inode = ecfs_raw_inode(&iloc);
-	ecfs_debug("inode->i_ino=%lld raw_inode=%x", inode->i_ino, raw_inode);
-
-
-	print_hex_dump(KERN_INFO,
-				"dump: ",
-				DUMP_PREFIX_OFFSET,
-				16, 1,
-				raw_inode,
-				256,
-				false);
 
 	if ((flags & ECFS_IGET_HANDLE) &&
 	    (raw_inode->i_links_count == 0) && (raw_inode->i_mode == 0)) {
@@ -5316,15 +5312,17 @@ struct inode *__ecfs_iget(struct super_block *sb, unsigned long ino,
 	/* Precompute checksum seed for inode metadata */
 	if (ecfs_has_feature_metadata_csum(sb)) {
 		struct ecfs_sb_info *sbi = ECFS_SB(inode->i_sb);
-		__u32 csum;
+		__u32 csum, crc1;
 		__le32 inum = cpu_to_le32(fid_get_ino(inode->i_ino));
 		__le32 gen = raw_inode->i_generation;
 		csum = ecfs_chksum(sbi->s_csum_seed, (__u8 *)&inum,
 				   sizeof(inum));
+		crc1 = csum;
+		
 		ei->i_csum_seed = ecfs_chksum(csum, (__u8 *)&gen, sizeof(gen));
+		//ecfs_debug("inode->i_ino=%lld crc1=%x gen=%x crc2=%x", fid_get_ino(inode->i_ino), crc1, gen, ei->i_csum_seed);
 	}
 
-	ecfs_debug("inode->i_ino=%lld ei->i_csum_seed=%x", inode->i_ino, ei->i_csum_seed);
 	if ((!ecfs_inode_csum_verify(inode, raw_inode, ei) ||
 	    ecfs_simulate_fail(sb, ECFS_SIM_INODE_CRC)) &&
 	     (!(ECFS_SB(sb)->s_mount_state & ECFS_FC_REPLAY))) {

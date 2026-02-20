@@ -1,14 +1,13 @@
 #you can source this file in .bashrc
 #source path_to_this/view.sh
 
-
 _view_common() {
     local start_bytes num_bytes disk_idx array_idx
     local part drive cmd
 
     start_bytes=$1    # 起始偏移（字节）
     num_bytes=$2      # 读取长度（字节）
-    disk_idx=$3       # 磁盘编号（可选）
+    disk_idx=0       # 磁盘编号（可选）
     array_idx=$4      # isi array 编号（可选）
 
     if [[ -z "$start_bytes" || -z "$num_bytes" ]]; then
@@ -23,14 +22,17 @@ _view_common() {
     #     part=$((7 - disk_idx))
     #     drive="/dev/da${part}p2"
     # fi
-    drive="${IMG:-/home/evers/test.img}"
+
+    source /tmp/vars.sh
+    echo "inode_start_block=$inode_start_block"
+    echo "IMG=$IMG"
 
 
     # 构造命令（不使用 eval）
     if [[ -n "$array_idx" ]]; then
-        cmd=(exe_cmd_from_other_node -n "$array_idx" hexdump -s "$start_bytes" -C -n "$num_bytes" "$drive")
+        cmd=(exe_cmd_from_other_node -n "$array_idx" hexdump -s "$start_bytes" -C -n "$num_bytes" "$IMG")
     else
-        cmd=(hexdump -s "$start_bytes" -C -n "$num_bytes" "$drive")
+        cmd=(hexdump -s "$start_bytes" -C -n "$num_bytes" "$IMG")
     fi
 
     echo "${cmd[@]}"
@@ -40,7 +42,10 @@ _view_common() {
 viewa() {
     # start = 字节偏移
     # blocks = 512B
-    _view_common "$1" "$(( $2 * 512 ))" "$3" "$4"
+    
+    # 如果第二个参数为空，默认值为 1
+    local blocks=${2:-1}
+    _view_common "$1" "$(( $blocks * 512 ))" "$3" "$4"
 }
 
 viewb() {
@@ -65,12 +70,14 @@ inode() {
     local inode_index inode_size block_size start_block start_bytes num_bytes disk_idx array_idx
 
     inode_index=$1      # inode 序号，从 1 开始 
-    disk_idx=$2         # 可选，默认 da7p2
+    disk_idx=0         # 可选，默认 da7p2
     array_idx=$3        # 可选，isi array
 
     inode_size=256      # bytes
     block_size=4096     # bytes
-    #inode_start_block=1059
+    
+    source /tmp/vars.sh
+
     inode_start_address=$(( inode_start_block * block_size ))
 
 
@@ -91,18 +98,35 @@ inode() {
 }
 
 # 查看文件系统头信息（superblock 信息）
-drive="${IMG:-/home/evers/test.img}"
-
-E2FS_PATH="${E2FS_PATH-/home/evers/e2fsprogs/misc/}"
-
-E2FS="dumpe2fs"
 
 
 alias va=viewa
 alias vb=viewb
 
-alias he='echo "$drive"; $E2FS_PATH$E2FS -h "$drive"'
+alias he='source /tmp/vars.sh; drive=$IMG; echo "$drive"; $E2FSPROGS/misc/dumpe2fs -h "$drive"'
 
 # 查看文件系统组信息（group descriptor 信息）
-alias gr='echo $E2FS_PATH$E2FS "$drive"; $E2FS_PATH$E2FS "$drive" | less'
+alias gr='source /tmp/vars.sh; drive=$IMG; echo $E2FSPROGS/misc/dumpe2fs "$drive"; $E2FSPROGS/misc/dumpe2fs "$drive" | less'
 
+alias csend='f(){ cmd="$*"; screen -S evers -Q windows | tr " " "\n" | cut -d: -f1 | while read w; do screen -S evers -p "$w" -X stuff "$cmd$(printf "\r")"; done; }; f'
+
+e2fs_build() {
+    local DEBUG_MACROS=""
+
+    # 把所有参数拼成 -Dxxx
+    for d in "$@"; do
+        DEBUG_MACROS="$DEBUG_MACROS -D$d"
+    done
+
+    cat >> /tmp/vars.sh <<EOF
+    export CFLAGS="-O0 -g $DEBUG_MACROS"
+    export CPPFLAGS="$DEBUG_MACROS"
+    EOF
+
+
+    ./configure && make -j$(nproc)
+}
+
+alias e2fsdbg='e2fs_build'
+
+alias upal='csend "source ~/.bashrc"'

@@ -303,7 +303,7 @@ static void __es_find_extent_range(struct inode *inode,
 	es->es_lblk = es->es_len = es->es_pblk = 0;
 	es1 = READ_ONCE(tree->cache_es);
 	if (es1 && in_range(lblk, es1->es_lblk, es1->es_len)) {
-		es_debug("%u cached by [%u/%u) %llu %x\n",
+		es_debug("%llu cached by [%llu/%llu) %llu %x\n",
 			 lblk, es1->es_lblk, es1->es_len,
 			 ecfs_es_pblock(es1), ecfs_es_status(es1));
 		goto out;
@@ -572,7 +572,7 @@ static int ecfs_es_can_be_merged(struct extent_status *es1,
 
 	if (((__u64) es1->es_len) + es2->es_len > EXT_MAX_BLOCKS) {
 		pr_warn("ES assertion failed when merging extents. "
-			"The sum of lengths of es1 (%d) and es2 (%d) "
+			"The sum of lengths of es1 (%lld) and es2 (%lld) "
 			"is bigger than allowed file size (%d)\n",
 			es1->es_len, es2->es_len, EXT_MAX_BLOCKS);
 		WARN_ON(1);
@@ -894,7 +894,7 @@ void ecfs_es_insert_extent(struct inode *inode, ecfs_lblk_t lblk,
 	if (ECFS_SB(inode->i_sb)->s_mount_state & ECFS_FC_REPLAY)
 		return;
 
-	es_debug("add [%u/%u) %llu %x %d to extent status tree of inode %lu\n",
+	es_debug("add [%llu/%llu) %llu %x %d to extent status tree of inode %lu\n",
 		 lblk, len, pblk, status, delalloc_reserve_used, inode->i_ino);
 
 	if (!len)
@@ -1040,7 +1040,7 @@ int ecfs_es_lookup_extent(struct inode *inode, ecfs_lblk_t lblk,
 		return 0;
 
 	trace_ecfs_es_lookup_extent_enter(inode, lblk);
-	es_debug("lookup extent in block %u\n", lblk);
+	es_debug("lookup extent in block %llu\n", lblk);
 
 	tree = &ECFS_I(inode)->i_es_tree;
 	read_lock(&ECFS_I(inode)->i_es_lock);
@@ -1049,7 +1049,7 @@ int ecfs_es_lookup_extent(struct inode *inode, ecfs_lblk_t lblk,
 	es->es_lblk = es->es_len = es->es_pblk = 0;
 	es1 = READ_ONCE(tree->cache_es);
 	if (es1 && in_range(lblk, es1->es_lblk, es1->es_len)) {
-		es_debug("%u cached by [%u/%u)\n",
+		es_debug("%llu cached by [%llu/%llu)\n",
 			 lblk, es1->es_lblk, es1->es_len);
 		found = 1;
 		goto out;
@@ -1551,7 +1551,7 @@ void ecfs_es_remove_extent(struct inode *inode, ecfs_lblk_t lblk,
 		return;
 
 	trace_ecfs_es_remove_extent(inode, lblk, len);
-	es_debug("remove [%u/%u) from extent status tree of inode %lu\n",
+	es_debug("remove [%llu/%llu) from extent status tree of inode %lu\n",
 		 lblk, len, inode->i_ino);
 
 	if (!len)
@@ -2129,7 +2129,7 @@ void ecfs_es_insert_delayed_extent(struct inode *inode, ecfs_lblk_t lblk,
 	if (ECFS_SB(inode->i_sb)->s_mount_state & ECFS_FC_REPLAY)
 		return;
 
-	es_debug("add [%u/%u) delayed to extent status tree of inode %lu\n",
+	es_debug("add [%llu/%llu) delayed to extent status tree of inode %lu\n",
 		 lblk, len, inode->i_ino);
 	if (!len)
 		return;
