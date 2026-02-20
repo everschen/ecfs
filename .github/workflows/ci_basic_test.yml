@@ -1,0 +1,85 @@
+name: ci basic test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  workflow_basic_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 拉你自己的文件系统代码
+      - name: Checkout ecfs source
+        uses: actions/checkout@v4
+
+      - name: Checkout e2fsprogs repo
+        uses: actions/checkout@v4
+        with:
+          repository: everschen/e2fsprogs
+          path: e2fsprogs
+
+      # 2. 安装内核构建所需依赖
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            flex \
+            bison \
+            libssl-dev \
+            libelf-dev \
+            dwarves
+
+      # 3. 拉 Ubuntu 官方内核源码（Questing）
+      - name: Clone Ubuntu kernel source (questing)
+        run: |
+              wget -q https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/linux/6.17.0-5.5/linux_6.17.0-5.5.tar.gz
+              tar xf linux_6.17.0-5.5.tar.gz
+              mv linux ubuntu-linux
+
+      # 4 Copy ECFS headers to kernel source
+      - name: Copy ECFS uapi header
+        run: |
+              cp -r $GITHUB_WORKSPACE/include/uapi/linux/ecfs.h ubuntu-linux/include/uapi/linux/
+              cp $GITHUB_WORKSPACE/include/linux/ecfs.h ubuntu-linux/include/linux/
+              mkdir -p ubuntu-linux/include/trace/events
+              cp $GITHUB_WORKSPACE/trace/events/ecfs.h ubuntu-linux/include/trace/events/
+              cp $GITHUB_WORKSPACE/symvers/Module.symvers ubuntu-linux/
+
+
+      # 5. 准备内核构建环境（只做模块）
+      - name: Prepare kernel build tree
+        run: |
+          cd ubuntu-linux
+          make defconfig
+          make modules_prepare
+
+      # 6. 编译你的文件系统模块
+      - name: Build filesystem module
+        run: |
+          make -C ubuntu-linux M=$GITHUB_WORKSPACE modules
+
+      # 7. 编译你的e2fsprogs
+      - name: Build e2fsprogs
+        run: |
+          cd e2fsprogs
+          ./configure
+          make
+
+      # 8. run the basic test
+      - name: Run workflow_basic_test.sh script
+        continue-on-error: true
+        run: |
+          $GITHUB_WORKSPACE/test/workflow_basic_test.sh
+
+      - name: Run workflow_basic_test.sh script
+        run: |          
+          dmesg | tail -n 20
+          # 或者
+          modinfo ecfs.ko | grep vermagic
+          # 再对比目标环境的
+          uname -r
+          cat /proc/version
+          modinfo $(ls /lib/modules/$(uname -r)/kernel/*/*.ko | head -n1) | grep vermagic
