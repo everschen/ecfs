@@ -118,10 +118,10 @@ e2fs_build() {
         DEBUG_MACROS="$DEBUG_MACROS -D$d"
     done
 
-    cat >> /tmp/vars.sh <<EOF
-    export CFLAGS="-O0 -g $DEBUG_MACROS"
-    export CPPFLAGS="$DEBUG_MACROS"
-    EOF
+cat >> /tmp/vars.sh <<EOF
+export CFLAGS="-O0 -g $DEBUG_MACROS"
+export CPPFLAGS="$DEBUG_MACROS"
+EOF
 
 
     ./configure && make -j$(nproc)
@@ -130,3 +130,4 @@ e2fs_build() {
 alias e2fsdbg='e2fs_build'
 
 alias upal='csend "source ~/.bashrc"'
+alias ecfs='~/linux-6.17.0/fs/ecfs/tools/ecfs.py'

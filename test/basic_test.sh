@@ -5,8 +5,11 @@ MODE=${1:-ecfs}
 
 TEST_PATH=$HOME
 
-IMG=$TEST_PATH/test.img
-inode_start_block=1059
+#IMG=$TEST_PATH/test.img
+#inode_start_block=1059
+
+inode_start_block=37
+
 
 
 

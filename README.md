@@ -3,7 +3,7 @@
 ### Development Plan
 
 - Phase one: one node, one disk (2026-02-20 done)
-    - gid, global inode, global block, design ready
+    - gid, global inode, global block, design/code ready
     - basic test pass (file create, directory create, ls)
     - full test pass
         - test_mkdir_auto
