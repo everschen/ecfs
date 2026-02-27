@@ -306,6 +306,9 @@ test_crash_auto() {
 ########################
 run_ops() {
   local M=$1
+  local NAME=$2
+  echo "[mixed stress ops][$NAME]"
+
   mkdir $M/dir1
   mkdir $M/dir1/sub
   touch $M/f1
@@ -320,6 +323,8 @@ run_ops() {
   for i in $(seq 1 100); do
     mkdir $M/deep/d$i || break
   done
+
+  echo "[PASS][$NAME] mixed stress ops"
 }
 
 print_title() {
@@ -377,7 +382,7 @@ sudo bash -c "$(declare -f fail test_hardlink_auto); test_hardlink_auto $MNT $MO
 
 print_title "mixed stress ops"
 #mixed ops
-sudo bash -c "$(declare -f run_ops); run_ops $MNT"
+sudo bash -c "$(declare -f run_ops); run_ops $MNT $MODE"
 
 
 # # Test-6
