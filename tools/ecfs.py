@@ -178,7 +178,7 @@ class EcfsInode:
         print("  eh_max :", eh_max)
         print("  Depth  :", depth)
 
-    def get_extents(self, f, sb):
+    def get_extents(self, f, sb, is_ecfs):
         eh_magic, eh_entries, eh_max, eh_depth = struct.unpack_from(
             "<HHHH", self.i_block, 0
         )
@@ -192,12 +192,20 @@ class EcfsInode:
         if eh_depth == 0:
             # 直接 leaf
             for i in range(eh_entries):
-                off = 12 + i * 12
-                ee_block, ee_len, ee_start_hi, ee_start_lo = struct.unpack_from(
-                    "<IHHI", self.i_block, off
-                )
-                phys = (ee_start_hi << 32) | ee_start_lo
-                extents.append((ee_block, ee_len, phys))
+                if is_ecfs:
+                    off = 12 + i * 16
+                    ee_block, ee_len, ee_node_id, ee_disk_id, ee_start_hi, ee_start_lo = struct.unpack_from(
+                        "<IHHHHI", self.i_block, off
+                    )
+                    phys = (ee_start_hi << 32) | ee_start_lo
+                    extents.append((ee_block, ee_len, ee_node_id, ee_disk_id, phys))
+                else:
+                    off = 12 + i * 12
+                    ee_block, ee_len, ee_start_hi, ee_start_lo = struct.unpack_from(
+                        "<IHHI", self.i_block, off
+                    )
+                    phys = (ee_start_hi << 32) | ee_start_lo
+                    extents.append((ee_block, ee_len, phys))
         else:
             # 需要递归
             for i in range(eh_entries):
@@ -271,13 +279,20 @@ def parse_extent_tree(f, sb, block_num, depth):
     if eh_depth == 0:
         # leaf
         for i in range(eh_entries):
-            off = 12 + i * 12
-            ee_block, ee_len, ee_start_hi, ee_start_lo = struct.unpack_from(
-                "<IHHI", data, off
-            )
-
-            phys_block = (ee_start_hi << 32) | ee_start_lo
-            extents.append((ee_block, ee_len, phys_block))
+            if is_ecfs:
+                off = 12 + i * 16
+                ee_block, ee_len, ee_node_id, ee_disk_id, ee_start_hi, ee_start_lo = struct.unpack_from(
+                    "<IHHHHI", self.i_block, off
+                )
+                phys = (ee_start_hi << 32) | ee_start_lo
+                extents.append((ee_block, ee_len, ee_node_id, ee_disk_id, phys))
+            else:
+                off = 12 + i * 12
+                ee_block, ee_len, ee_start_hi, ee_start_lo = struct.unpack_from(
+                    "<IHHI", self.i_block, off
+                )
+                phys = (ee_start_hi << 32) | ee_start_lo
+                extents.append((ee_block, ee_len, phys))
 
     else:
         # index node
@@ -336,23 +351,38 @@ def parse_directory_block(data, is_ecfs):
 
 
 def list_directory(f, sb, inode, is_ecfs):
-    extents = inode.get_extents(f, sb)
+    extents = inode.get_extents(f, sb, is_ecfs)
 
     all_entries = []
 
-    for logical, length, physical in extents:
-        #print(logical, length, physical)
-        for i in range(length):
-            block_num = physical + i
-            offset = block_num * sb.block_size
+    if is_ecfs:
+        for logical, length, ee_node_id, ee_disk_id, physical in extents:
+            #print(logical, length, physical)
+            for i in range(length):
+                block_num = physical + i
+                offset = block_num * sb.block_size
 
-            f.seek(offset)
-            data = f.read(sb.block_size)
-            #print(i, offset, data)
+                f.seek(offset)
+                data = f.read(sb.block_size)
+                #print(i, offset, data)
 
-            entries = parse_directory_block(data, is_ecfs)
-            #print(i, offset, entries)
-            all_entries.extend(entries)
+                entries = parse_directory_block(data, is_ecfs)
+                #print(i, offset, entries)
+                all_entries.extend(entries)
+    else:
+        for logical, length, physical in extents:
+            #print(logical, length, physical)
+            for i in range(length):
+                block_num = physical + i
+                offset = block_num * sb.block_size
+
+                f.seek(offset)
+                data = f.read(sb.block_size)
+                #print(i, offset, data)
+
+                entries = parse_directory_block(data, is_ecfs)
+                #print(i, offset, entries)
+                all_entries.extend(entries)
 
     return all_entries
 
@@ -361,13 +391,18 @@ def read_journal_inode(f, sb, groups):
     return read_inode(f, sb, groups, 8)
 
 def read_journal_blocks(f, sb, inode):
-    extents = inode.get_extents(f, sb)
+    extents = inode.get_extents(f, sb, sb.is_ecfs)
 
     blocks = []
 
-    for logical, length, physical in extents:
-        for i in range(length):
-            blocks.append(physical + i)
+    if sb.is_ecfs:
+        for logical, length, ee_node_id, ee_disk_id, physical in extents:
+            for i in range(length):
+                blocks.append(physical + i)
+    else:
+        for logical, length, physical in extents:
+            for i in range(length):
+                blocks.append(physical + i)
 
     return blocks
 
@@ -438,15 +473,24 @@ def main(path, inode_no=2):
         inode.print_summary(inode_no)
         inode.parse_extent_header()
 
-        extents = inode.get_extents(f, sb)
+        extents = inode.get_extents(f, sb, sb.is_ecfs)
 
         print("\nExtent Mapping:")
-        for logical, length, physical in extents:
-            print(
-                f"Logical block {logical} "
-                f"-> Physical block {physical} "
-                f"(len={length})"
-            )
+
+        if sb.is_ecfs:
+            for logical, length, ee_node_id, ee_disk_id, physical in extents:
+                print(
+                    f"Logical block {logical} "
+                    f"-> Physical block {physical} "
+                    f"(len={length} node={ee_node_id} disk={ee_disk_id})"
+                )
+        else:
+            for logical, length, physical in extents:
+                print(
+                    f"Logical block {logical} "
+                    f"-> Physical block {physical} "
+                    f"(len={length})"
+                )
 
         if (inode.i_mode & 0xF000) == 0x4000:
             print("\nDirectory listing:\n")

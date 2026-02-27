@@ -83,4 +83,4 @@ pwd
 ls -lia
 echo "cd $MNT"
 cd $MNT
-sudo chown -R evers:evers $MNT
+sudo chown -R $USER:$USER $MNT

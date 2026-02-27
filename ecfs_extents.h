@@ -56,6 +56,8 @@ struct ecfs_extent_tail {
 struct ecfs_extent {
 	__le32	ee_block;	/* first logical block extent covers */
 	__le16	ee_len;		/* number of blocks covered by extent */
+	__le16	ee_node_id;	/* node id */
+	__le16	ee_disk_id;	/* disk id */
 	__le16	ee_start_hi;	/* high 16 bits of physical block */
 	__le32	ee_start_lo;	/* low 32 bits of physical block */
 };
